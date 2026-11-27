@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Map;
 import kr.fitorder.admin.AuditService;
 import kr.fitorder.common.BusinessException;
-import kr.fitorder.ingestion.IngestionProperties;
+import kr.fitorder.ingestion.DataSourceService;
 import kr.fitorder.module.uniform.domain.SizeMapping;
 import kr.fitorder.module.uniform.domain.SizeMappingRepository;
 import kr.fitorder.module.uniform.domain.UniformOrderRepository;
@@ -36,22 +36,23 @@ public class SizeMappingService {
 
     private final UniformOrderRepository orders;
     private final SizeMappingRepository mappings;
-    private final IngestionProperties ingestion;
+    private final DataSourceService sources;
     private final AuditService audit;
 
     public SizeMappingService(UniformOrderRepository orders, SizeMappingRepository mappings,
-                              IngestionProperties ingestion, AuditService audit) {
+                              DataSourceService sources, AuditService audit) {
         this.orders = orders;
         this.mappings = mappings;
-        this.ingestion = ingestion;
+        this.sources = sources;
         this.audit = audit;
     }
 
     /** 활성 데이터에 나오는 사이즈 코드 전체와 현재 매핑. */
     @Transactional(readOnly = true)
     public List<SizeRow> list() {
+        Map<String, String> names = sources.names();
         return orders.findSizeUsage().stream()
-                .map(u -> new SizeRow(u.getSource(), sourceName(u.getSource()), u.getRawSize(), u.getRowCount(),
+                .map(u -> new SizeRow(u.getSource(), names.getOrDefault(u.getSource(), u.getSource()), u.getRawSize(), u.getRowCount(),
                         u.getStandardSize()))
                 .sorted(Comparator.comparing(SizeRow::source).thenComparing(SizeRow::rawSize, SIZE_ORDER))
                 .toList();
@@ -83,18 +84,14 @@ public class SizeMappingService {
     public SizeLabeler labeler() {
         Map<Key, String> map = new HashMap<>();
         mappings.findAll().forEach(m -> map.put(new Key(m.getSource(), m.getRawSize()), m.getStandardSize()));
+        Map<String, String> names = sources.names();
         return (source, rawSize) -> {
             if (rawSize == null) {
                 return "미기재";
             }
             String standard = map.get(new Key(source, rawSize));
-            return standard != null ? standard : rawSize + " (" + sourceName(source) + ")";
+            return standard != null ? standard : rawSize + " (" + names.getOrDefault(source, source) + ")";
         };
-    }
-
-    private String sourceName(String source) {
-        var spec = ingestion.sources().get(source);
-        return spec != null && spec.name() != null ? spec.name() : source;
     }
 
     @FunctionalInterface

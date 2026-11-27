@@ -10,6 +10,7 @@ import kr.fitorder.common.BusinessException;
 import kr.fitorder.common.DataIngestion;
 import kr.fitorder.common.IngestionRequest;
 import kr.fitorder.common.LoadMethod;
+import kr.fitorder.common.RawData;
 import kr.fitorder.common.RawRecord;
 import kr.fitorder.common.SourceSpec;
 import org.springframework.core.ParameterizedTypeReference;
@@ -43,7 +44,7 @@ public class ApiIngestion implements DataIngestion {
     }
 
     @Override
-    public List<RawRecord> read(IngestionRequest request) {
+    public RawData read(IngestionRequest request) {
         SourceSpec spec = request.spec();
         if (spec.url() == null || spec.url().isBlank()) {
             throw new BusinessException(spec.name() + "의 API 주소가 설정되지 않았습니다.");
@@ -67,10 +68,8 @@ public class ApiIngestion implements DataIngestion {
                 break;
             }
         }
-        if (!records.isEmpty()) {
-            checkColumns(spec, records.getFirst().original().keySet());
-        }
-        return records;
+        List<String> columns = records.isEmpty() ? List.of() : List.copyOf(records.getFirst().original().keySet());
+        return new RawData(columns, records);
     }
 
     private Map<String, Object> fetch(SourceSpec spec, String key, int page) {
@@ -111,10 +110,9 @@ public class ApiIngestion implements DataIngestion {
         return key.contains("%") ? URLDecoder.decode(key, StandardCharsets.UTF_8) : key;
     }
 
-    private static void checkColumns(SourceSpec spec, java.util.Set<String> actual) {
-        List<String> missing = spec.columns().values().stream().filter(c -> !actual.contains(c)).toList();
-        if (!missing.isEmpty()) {
-            throw new BusinessException("API 응답에 필요한 컬럼이 없습니다: " + missing + " / 응답 컬럼: " + actual);
-        }
+    /** 인증키가 설정돼 있는지(값은 내보내지 않는다). */
+    public boolean keyConfigured() {
+        String key = properties.dataGoKr().serviceKey();
+        return key != null && !key.isBlank();
     }
 }

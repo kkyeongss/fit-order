@@ -11,6 +11,7 @@ import java.util.regex.Pattern;
 import kr.fitorder.common.LoadContext;
 import kr.fitorder.common.LoadSummary;
 import kr.fitorder.common.RawRecord;
+import kr.fitorder.common.SourceField;
 import kr.fitorder.common.SourceLoader;
 import kr.fitorder.module.uniform.domain.Headcount;
 import kr.fitorder.module.uniform.domain.HeadcountRepository;
@@ -29,13 +30,19 @@ public class HeadcountLoader implements SourceLoader {
 
     private static final Pattern FAMILY_GRADE = Pattern.compile("(.+?)(\\d+급)");
 
-    private final Set<String> keyColumns;
+    private static final List<SourceField> FIELDS = List.of(
+            new SourceField(BASE_DATE, "기준일자", true),
+            new SourceField(DEPARTMENT, "부서명", true));
+
     private final HeadcountRepository repository;
 
-    /** @param keyColumns 정원이 아닌 컬럼(설정의 columns 값: 기준일자, 부서명) */
-    public HeadcountLoader(Set<String> keyColumns, HeadcountRepository repository) {
-        this.keyColumns = Set.copyOf(keyColumns);
+    public HeadcountLoader(HeadcountRepository repository) {
         this.repository = repository;
+    }
+
+    @Override
+    public List<SourceField> fields() {
+        return FIELDS;
     }
 
     @Override
@@ -45,6 +52,8 @@ public class HeadcountLoader implements SourceLoader {
 
     @Override
     public LoadSummary load(LoadContext context, List<RawRecord> records) {
+        // 기준일자·부서명으로 매핑된 컬럼 외에는 모두 정원 컬럼이다.
+        Set<String> keyColumns = Set.copyOf(context.spec().columns().values());
         List<Headcount> rows = new ArrayList<>();
         int flagged = 0;
         for (RawRecord record : records) {

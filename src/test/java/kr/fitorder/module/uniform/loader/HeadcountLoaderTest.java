@@ -9,10 +9,10 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import kr.fitorder.common.LoadContext;
 import kr.fitorder.common.LoadSummary;
 import kr.fitorder.common.RawRecord;
+import kr.fitorder.common.SourceSpec;
 import kr.fitorder.module.uniform.domain.Headcount;
 import kr.fitorder.module.uniform.domain.HeadcountRepository;
 import org.junit.jupiter.api.Test;
@@ -21,7 +21,13 @@ import org.mockito.ArgumentCaptor;
 class HeadcountLoaderTest {
 
     private final HeadcountRepository repository = mock(HeadcountRepository.class);
-    private final HeadcountLoader loader = new HeadcountLoader(Set.of("기준일자", "부서명"), repository);
+    private final HeadcountLoader loader = new HeadcountLoader(repository);
+    private final SourceSpec spec = new SourceSpec("정원현황", null, null, null, null,
+            Map.of("base-date", "기준일자", "department", "부서명"));
+
+    private LoadContext context() {
+        return new LoadContext(1, "headcount", 2026, spec);
+    }
 
     private static RawRecord row(String date, String dept, String... cells) {
         Map<String, String> original = new LinkedHashMap<>();
@@ -45,7 +51,7 @@ class HeadcountLoaderTest {
 
     @Test
     void 넓은_표를_직군_직급별_행으로_편다() {
-        LoadSummary summary = loader.load(new LoadContext(1, "headcount", 2026), List.of(
+        LoadSummary summary = loader.load(context(), List.of(
                 row("2026-01-01", "경영지원팀", "임원수", "1", "일반직3급", "2", "기술직5급", "0", "계약직", "4")));
 
         List<Headcount> rows = saved();
@@ -61,7 +67,7 @@ class HeadcountLoaderTest {
 
     @Test
     void 날짜가_없거나_숫자가_아닌_칸이_있으면_품질_건수로_센다() {
-        LoadSummary summary = loader.load(new LoadContext(1, "headcount", 2026), List.of(
+        LoadSummary summary = loader.load(context(), List.of(
                 row("", "A팀", "업무직", "1"),
                 row("2026-01-01", "B팀", "업무직", "x", "지원직", "2")));
 

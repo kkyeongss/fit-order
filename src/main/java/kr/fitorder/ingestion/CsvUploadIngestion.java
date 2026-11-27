@@ -14,6 +14,7 @@ import kr.fitorder.common.BusinessException;
 import kr.fitorder.common.DataIngestion;
 import kr.fitorder.common.IngestionRequest;
 import kr.fitorder.common.LoadMethod;
+import kr.fitorder.common.RawData;
 import kr.fitorder.common.RawRecord;
 import kr.fitorder.common.SourceSpec;
 import org.apache.commons.csv.CSVFormat;
@@ -39,7 +40,7 @@ public class CsvUploadIngestion implements DataIngestion {
     }
 
     @Override
-    public List<RawRecord> read(IngestionRequest request) {
+    public RawData read(IngestionRequest request) {
         if (request.content() == null || request.content().length == 0) {
             throw new BusinessException("빈 파일입니다.");
         }
@@ -48,8 +49,6 @@ public class CsvUploadIngestion implements DataIngestion {
 
         try (CSVParser parser = CSVParser.parse(new StringReader(text), FORMAT)) {
             List<String> headers = parser.getHeaderNames().stream().map(String::strip).toList();
-            checkColumns(spec, headers);
-
             List<RawRecord> records = new ArrayList<>();
             for (CSVRecord row : parser) {
                 Map<String, String> original = new LinkedHashMap<>();
@@ -61,17 +60,9 @@ public class CsvUploadIngestion implements DataIngestion {
                 // 헤더가 1행이므로 데이터 행 번호는 레코드 번호 + 1
                 records.add(new RawRecord(row.getRecordNumber() + 1, original, fields));
             }
-            return records;
+            return new RawData(headers, records);
         } catch (IOException | IllegalStateException | java.io.UncheckedIOException e) {
             throw new BusinessException("CSV 형식을 읽을 수 없습니다: " + e.getMessage());
-        }
-    }
-
-    private static void checkColumns(SourceSpec spec, List<String> headers) {
-        List<String> missing = spec.columns().values().stream().filter(c -> !headers.contains(c)).toList();
-        if (!missing.isEmpty()) {
-            throw new BusinessException("필요한 컬럼이 없습니다: " + missing + " / 파일 컬럼: " + headers
-                    + ". 원천 종류를 확인하거나 설정의 컬럼 매핑을 고치세요.");
         }
     }
 
@@ -90,7 +81,7 @@ public class CsvUploadIngestion implements DataIngestion {
     }
 
     /** CP949는 자바에서 MS949(x-windows-949)라는 이름이다. */
-    static Charset charsetOf(String name) {
+    public static Charset charsetOf(String name) {
         if ("CP949".equalsIgnoreCase(name)) {
             return Charset.forName("x-windows-949");
         }

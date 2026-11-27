@@ -32,9 +32,18 @@ dependencies {
 	testImplementation 'org.springframework.boot:spring-boot-starter-validation-test'
 	testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+	testImplementation 'org.springframework.boot:spring-boot-testcontainers'
+	testImplementation 'org.testcontainers:testcontainers-junit-jupiter'
+	testImplementation 'org.testcontainers:testcontainers-postgresql'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
 tasks.named('test') {
 	useJUnitPlatform()
+	// Colima(Docker Desktop 대신)를 쓰는 Mac에서 Testcontainers가 Docker를 찾도록 한다.
+	def colimaSocket = file("${System.getProperty('user.home')}/.colima/default/docker.sock")
+	if (!System.getenv('DOCKER_HOST') && colimaSocket.exists()) {
+		environment 'DOCKER_HOST', "unix://${colimaSocket}"
+		environment 'TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE', '/var/run/docker.sock'
+	}
 }

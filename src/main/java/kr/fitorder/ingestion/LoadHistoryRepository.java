@@ -14,6 +14,8 @@ public interface LoadHistoryRepository extends JpaRepository<LoadHistory, Long> 
 
     List<LoadHistory> findAllByOrderByLoadedAtDesc();
 
+    Optional<LoadHistory> findFirstBySourceOrderByLoadedAtDesc(String source);
+
     @Modifying(flushAutomatically = true)
     @Query("update LoadHistory h set h.active = false where h.source = :source and h.active = true")
     int deactivateAll(String source);

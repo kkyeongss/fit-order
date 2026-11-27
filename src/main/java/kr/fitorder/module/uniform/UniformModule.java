@@ -7,8 +7,6 @@ import kr.fitorder.common.LoadMethod;
 import kr.fitorder.common.MetricCalculator;
 import kr.fitorder.common.QualityChecker;
 import kr.fitorder.common.SourceLoader;
-import java.util.HashSet;
-import kr.fitorder.ingestion.IngestionProperties;
 import kr.fitorder.module.uniform.domain.HeadcountRepository;
 import kr.fitorder.module.uniform.domain.UniformOrder;
 import kr.fitorder.module.uniform.domain.UniformOrderRepository;
@@ -29,11 +27,11 @@ public class UniformModule implements EsgModule {
 
     public UniformModule(ItemClassifier classifier, List<QualityChecker<UniformOrder>> checkers,
                          UniformOrderRepository orders, HeadcountRepository headcounts,
-                         IngestionProperties ingestion, ObjectProvider<MetricCalculator> calculators) {
+                         ObjectProvider<MetricCalculator> calculators) {
         this.loaders = List.of(
                 new UniformOrderLoader(UniformSources.ORDER, classifier, checkers, orders),
                 new UniformOrderLoader(UniformSources.ORDER_INFO, classifier, checkers, orders),
-                new HeadcountLoader(new HashSet<>(ingestion.spec(HeadcountLoader.SOURCE).columns().values()), headcounts));
+                new HeadcountLoader(headcounts));
         this.calculators = calculators;
     }
 

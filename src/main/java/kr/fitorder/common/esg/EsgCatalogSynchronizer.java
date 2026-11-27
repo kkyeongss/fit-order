@@ -7,6 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
  * 이미 있는 항목의 사용 여부·적재 방식은 관리 화면 값을 그대로 둔다.
  */
 @Component
+@Order(1)
 public class EsgCatalogSynchronizer implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(EsgCatalogSynchronizer.class);

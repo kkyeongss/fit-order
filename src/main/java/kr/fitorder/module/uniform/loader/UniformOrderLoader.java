@@ -11,6 +11,7 @@ import kr.fitorder.common.LoadSummary;
 import kr.fitorder.common.QualityChecker;
 import kr.fitorder.common.QualityFlag;
 import kr.fitorder.common.RawRecord;
+import kr.fitorder.common.SourceField;
 import kr.fitorder.common.SourceLoader;
 import kr.fitorder.module.uniform.domain.UniformOrder;
 import kr.fitorder.module.uniform.domain.UniformOrderRepository;
@@ -31,6 +32,16 @@ public class UniformOrderLoader implements SourceLoader {
 
     private static final String SEP = "\u001F";
 
+    private static final List<SourceField> FIELDS = List.of(
+            new SourceField(ORDER_DATE, "주문일", true),
+            new SourceField(ITEM_CODE, "품목코드", false),
+            new SourceField(ITEM, "품목명", true),
+            new SourceField(SEASON, "계절", false),
+            new SourceField(SIZE, "사이즈", true),
+            new SourceField(QUANTITY, "수량", true),
+            new SourceField("order-status", "주문상태", false),
+            new SourceField("gender-code", "성별코드", false));
+
     private final String sourceCode;
     private final ItemClassifier classifier;
     private final List<QualityChecker<UniformOrder>> checkers;
@@ -47,6 +58,11 @@ public class UniformOrderLoader implements SourceLoader {
     @Override
     public String sourceCode() {
         return sourceCode;
+    }
+
+    @Override
+    public List<SourceField> fields() {
+        return FIELDS;
     }
 
     @Override

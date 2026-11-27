@@ -1,5 +1,7 @@
 package kr.fitorder.common;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -19,6 +21,11 @@ public record SourceSpec(String name, LoadMethod method, String url, Integer per
         charset = charset == null || charset.isBlank() ? "CP949" : charset;
         perPage = perPage == null ? 1000 : perPage;
         columns = columns == null ? Map.of() : Map.copyOf(columns);
+    }
+
+    /** 매핑된 원본 컬럼 중 실제 컬럼에 없는 것. */
+    public List<String> missingColumns(Collection<String> actualColumns) {
+        return columns.values().stream().filter(c -> !actualColumns.contains(c)).toList();
     }
 
     /** 업로드 파일 설정만 있는 원천. */

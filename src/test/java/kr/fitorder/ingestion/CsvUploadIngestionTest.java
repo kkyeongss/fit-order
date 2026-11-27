@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import kr.fitorder.common.BusinessException;
 import kr.fitorder.common.IngestionRequest;
+import kr.fitorder.common.RawData;
 import kr.fitorder.common.RawRecord;
 import kr.fitorder.common.SourceSpec;
 import org.junit.jupiter.api.Test;
@@ -28,18 +29,20 @@ class CsvUploadIngestionTest {
         return SourceSpec.upload("근무복 주문현황", "CP949", columns);
     }
 
-    private List<RawRecord> read(String csv, Charset charset) {
+    private RawData read(String csv, Charset charset) {
         return ingestion.read(new IngestionRequest("uniform-order", spec(), "a.csv", csv.getBytes(charset)));
     }
 
     @Test
     void CP949_파일을_컬럼_매핑대로_읽는다() {
-        List<RawRecord> records = read("""
+        RawData data = read("""
                 주문일,피복종류,사이즈,수량
                 2024-04-01,셔츠(일반),100,5
                 2024-08-02,재킷, 95 ,
                 """, CP949);
+        List<RawRecord> records = data.records();
 
+        assertThat(data.columns()).containsExactly("주문일", "피복종류", "사이즈", "수량");
         assertThat(records).hasSize(2);
         RawRecord first = records.get(0);
         assertThat(first.lineNo()).isEqualTo(2);
@@ -51,11 +54,9 @@ class CsvUploadIngestionTest {
     }
 
     @Test
-    void 필요한_컬럼이_없으면_파일_컬럼과_함께_알려준다() {
-        assertThatThrownBy(() -> read("주문일,품목,수량\n2024-04-01,셔츠,5\n", CP949))
-                .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("피복종류")
-                .hasMessageContaining("품목");
+    void 매핑한_컬럼_중_파일에_없는_것을_찾는다() {
+        RawData data = read("주문일,품목,수량\n2024-04-01,셔츠,5\n", CP949);
+        assertThat(spec().missingColumns(data.columns())).containsExactly("피복종류");
     }
 
     @Test
