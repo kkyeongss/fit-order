@@ -33,12 +33,8 @@ public class ApiIngestion implements DataIngestion {
     private final RestClient client;
 
     public ApiIngestion(ExternalApiProperties properties) {
-        this(properties, RestClient.create());
-    }
-
-    ApiIngestion(ExternalApiProperties properties, RestClient client) {
         this.properties = properties;
-        this.client = client;
+        this.client = RestClient.create();
     }
 
     @Override
