@@ -1,0 +1,85 @@
+spring:
+  application:
+    name: fit-order
+  datasource:
+    url: ${FITORDER_DB_URL:jdbc:postgresql://localhost:5432/fitorder}
+    username: ${FITORDER_DB_USER:fitorder}
+    password: ${FITORDER_DB_PASSWORD:fitorder}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate.jdbc.time_zone: Asia/Seoul
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 20MB
+
+fitorder:
+  security:
+    # 시연 계정. 운영 시에는 환경변수로 비밀번호를 바꾼다.
+    users:
+      - username: user
+        password: ${FITORDER_USER_PASSWORD:user1234}
+        role: USER
+      - username: admin
+        password: ${FITORDER_ADMIN_PASSWORD:admin1234}
+        role: ADMIN
+
+  # 원천 데이터별 읽기 설정. 내년에 CSV 컬럼명이 바뀌면 오른쪽 값만 고친다.
+  # 왼쪽(표준 필드명)은 코드가 쓰는 이름이라 바꾸지 않는다.
+  ingestion:
+    sources:
+      uniform-order:
+        name: 근무복 주문현황
+        charset: CP949
+        columns:
+          order-date: 주문일
+          order-status: 주문상태
+          season: 계절구분
+          item: 피복종류
+          size: 사이즈
+          quantity: 수량
+      uniform-order-info:
+        name: 근무복 주문현황정보
+        charset: CP949
+        columns:
+          item-code: 근무복코드
+          item: 근무복명
+          size: 사이즈
+          gender-code: 성별코드
+          order-date: 사용날짜
+          quantity: 주문수량
+
+  uniform:
+    # 품목 분류 규칙. 코드 규칙을 먼저 보고, 없으면 품목명 키워드를 위에서부터 본다.
+    # item을 지정하면 그 이름으로 합치고, 비우면 원본 품목명을 그대로 쓴다.
+    code-rules:
+      - source: uniform-order-info
+        code: "10"
+        item: 점퍼
+        group: JUMPER
+      - source: uniform-order-info
+        code: "11"
+        item: 점퍼
+        group: JUMPER
+    item-rules:
+      - keyword: 패딩
+        group: PADDING_VEST
+      - keyword: 조끼
+        group: VEST
+      - keyword: 재킷
+        group: JACKET
+      - keyword: 자켓
+        group: JACKET
+      - keyword: 점퍼
+        item: 점퍼
+        group: JUMPER
+      - keyword: 바지
+        group: PANTS
+      - keyword: 셔츠
+        group: SHIRT
+    # 뜻을 확인하지 못한 사이즈 코드. 적재는 하되 품질 플래그를 단다.
+    unknown-sizes:
+      uniform-order-info: ["91", "95"]

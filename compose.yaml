@@ -1,0 +1,15 @@
+# 로컬 개발용 PostgreSQL. 실행: docker compose up -d
+services:
+  db:
+    image: postgres:18
+    environment:
+      POSTGRES_DB: fitorder
+      POSTGRES_USER: fitorder
+      POSTGRES_PASSWORD: fitorder
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql
+
+volumes:
+  pgdata:
