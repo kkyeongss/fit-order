@@ -25,7 +25,7 @@ class CsvUploadIngestionTest {
         columns.put("order-date", "주문일");
         columns.put("item", "피복종류");
         columns.put("quantity", "수량");
-        return new SourceSpec("근무복 주문현황", "CP949", columns);
+        return SourceSpec.upload("근무복 주문현황", "CP949", columns);
     }
 
     private List<RawRecord> read(String csv, Charset charset) {

@@ -39,4 +39,15 @@ out/
 ### fit-order ###
 node_modules/
 frontend/dist/
+
+### 비밀값: Open API 인증키, 비밀번호 등. 값은 .env에만 두고 커밋하지 않는다 ###
 .env
+.env.*
+!.env.example
+application-local.yml
+application-local.properties
+*.key
+*.pem
+
+### macOS ###
+.DS_Store

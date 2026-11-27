@@ -1,6 +1,9 @@
 spring:
   application:
     name: fit-order
+  config:
+    # 로컬 비밀값(.env, 커밋 안 됨). 서버에서는 환경변수로 넣는다.
+    import: optional:file:.env[.properties]
   datasource:
     url: ${FITORDER_DB_URL:jdbc:postgresql://localhost:5432/fitorder}
     username: ${FITORDER_DB_USER:fitorder}
@@ -27,6 +30,10 @@ fitorder:
         password: ${FITORDER_ADMIN_PASSWORD:admin1234}
         role: ADMIN
 
+  external:
+    data-go-kr:
+      service-key: ${DATA_GO_KR_SERVICE_KEY:}
+
   # 원천 데이터별 읽기 설정. 내년에 CSV 컬럼명이 바뀌면 오른쪽 값만 고친다.
   # 왼쪽(표준 필드명)은 코드가 쓰는 이름이라 바꾸지 않는다.
   ingestion:
@@ -51,6 +58,16 @@ fitorder:
           gender-code: 성별코드
           order-date: 사용날짜
           quantity: 주문수량
+      # 정원현황: 공공데이터포털 Open API. 망분리 환경에서는 method를 UPLOAD로 바꾸고 CSV를 올린다.
+      # 기준일자·부서명 외의 컬럼(임원수, 일반직1급 … 지원직)은 모두 직군·직급별 정원으로 읽는다.
+      headcount:
+        name: 정원현황
+        method: API
+        url: https://api.odcloud.kr/api/15144222/v1/uddi:2a23b2a5-027c-43b3-9eb7-c0d983d5ed56
+        charset: CP949
+        columns:
+          base-date: 기준일자
+          department: 부서명
 
   uniform:
     # 품목 분류 규칙. 코드 규칙을 먼저 보고, 없으면 품목명 키워드를 위에서부터 본다.

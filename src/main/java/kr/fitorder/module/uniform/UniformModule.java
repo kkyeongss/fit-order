@@ -7,8 +7,12 @@ import kr.fitorder.common.LoadMethod;
 import kr.fitorder.common.MetricCalculator;
 import kr.fitorder.common.QualityChecker;
 import kr.fitorder.common.SourceLoader;
+import java.util.HashSet;
+import kr.fitorder.ingestion.IngestionProperties;
+import kr.fitorder.module.uniform.domain.HeadcountRepository;
 import kr.fitorder.module.uniform.domain.UniformOrder;
 import kr.fitorder.module.uniform.domain.UniformOrderRepository;
+import kr.fitorder.module.uniform.loader.HeadcountLoader;
 import kr.fitorder.module.uniform.loader.ItemClassifier;
 import kr.fitorder.module.uniform.loader.UniformOrderLoader;
 import org.springframework.beans.factory.ObjectProvider;
@@ -24,10 +28,12 @@ public class UniformModule implements EsgModule {
     private final ObjectProvider<MetricCalculator> calculators;
 
     public UniformModule(ItemClassifier classifier, List<QualityChecker<UniformOrder>> checkers,
-                         UniformOrderRepository orders, ObjectProvider<MetricCalculator> calculators) {
+                         UniformOrderRepository orders, HeadcountRepository headcounts,
+                         IngestionProperties ingestion, ObjectProvider<MetricCalculator> calculators) {
         this.loaders = List.of(
                 new UniformOrderLoader(UniformSources.ORDER, classifier, checkers, orders),
-                new UniformOrderLoader(UniformSources.ORDER_INFO, classifier, checkers, orders));
+                new UniformOrderLoader(UniformSources.ORDER_INFO, classifier, checkers, orders),
+                new HeadcountLoader(new HashSet<>(ingestion.spec(HeadcountLoader.SOURCE).columns().values()), headcounts));
         this.calculators = calculators;
     }
 
