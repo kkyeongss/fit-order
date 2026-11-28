@@ -9,6 +9,9 @@ import kr.fitorder.module.uniform.analysis.RecommendationCalculator.ItemPlan;
 import kr.fitorder.module.uniform.analysis.RecommendationCalculator.MonthShare;
 import kr.fitorder.module.uniform.analysis.UniformDataset.YearHeadcount;
 import kr.fitorder.module.uniform.domain.UniformItemGroup;
+import kr.fitorder.module.uniform.price.GreenProductService;
+import kr.fitorder.module.uniform.price.MarketPriceService;
+import kr.fitorder.module.uniform.price.MarketPriceService.MarketPrice;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,22 +32,32 @@ public class RecommendationService {
                          BigDecimal savedAmount, BigDecimal carbonKg, boolean priceEstimated) {
     }
 
+    /**
+     * @param marketPrices  조달청 쇼핑몰 시장가와 환경표지제품 수·가격(녹색구매 비교용)
+     * @param greenProducts 녹색제품 정보조회 서비스의 품목군별 유효 환경표지 인증 제품 수
+     */
     public record Recommendation(int year, Basis basis, Integer headcount, YearHeadcount latestHeadcount,
                                  List<ItemPlan> items, Totals totals, List<MonthShare> orderMonths,
-                                 double improvementRate) {
+                                 double improvementRate, List<MarketPrice> marketPrices,
+                                 List<GreenProductService.GroupSummary> greenProducts) {
     }
 
     private final UniformDatasetLoader loader;
     private final RecommendationCalculator calculator;
     private final Backtester backtester;
     private final AnalysisProperties props;
+    private final MarketPriceService market;
+    private final GreenProductService green;
 
     public RecommendationService(UniformDatasetLoader loader, RecommendationCalculator calculator,
-                                 Backtester backtester, AnalysisProperties props) {
+                                 Backtester backtester, AnalysisProperties props, MarketPriceService market,
+                                 GreenProductService green) {
         this.loader = loader;
         this.calculator = calculator;
         this.backtester = backtester;
         this.props = props;
+        this.market = market;
+        this.green = green;
     }
 
     public Recommendation recommend(Request request) {
@@ -81,7 +94,8 @@ public class RecommendationService {
                         .reduce(BigDecimal.ZERO, BigDecimal::add),
                 items.stream().anyMatch(ItemPlan::priceEstimated));
         return new Recommendation(year, basis, headcount, latest, items, totals, calculator.orderMonths(data),
-                props.improvementRate());
+                props.improvementRate(), market.list().stream().filter(m -> groups.contains(m.group())).toList(),
+                green.summary().stream().filter(g -> g.group() == null || groups.contains(g.group())).toList());
     }
 
     public Backtester.Result backtest(Basis basis) {

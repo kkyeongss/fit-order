@@ -16,6 +16,7 @@ import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import kr.fitorder.module.uniform.analysis.Period.Comparison;
+import kr.fitorder.module.uniform.analysis.UniformDataset.PriceSource;
 import kr.fitorder.module.uniform.analysis.UniformDataset.UnitPrice;
 import kr.fitorder.module.uniform.analysis.UniformDataset.YearHeadcount;
 import kr.fitorder.module.uniform.domain.UniformItemGroup;
@@ -30,7 +31,7 @@ public class UniformAnalysis {
 
     /** 품목군 하나의 절감 효과. 연간 기준이다. */
     public record Savings(UniformItemGroup group, Comparison comparison, double mismatchRate, double annualQuantity,
-                          double savedQuantity, BigDecimal unitPrice, boolean priceEstimated, BigDecimal savedAmount,
+                          double savedQuantity, BigDecimal unitPrice, PriceSource priceSource, BigDecimal savedAmount,
                           BigDecimal carbonKg) {
     }
 
@@ -128,7 +129,7 @@ public class UniformAnalysis {
         double saved = rate * quantity * props.improvementRate();
         UnitPrice price = data.priceOf(group);
         BigDecimal savedQty = BigDecimal.valueOf(saved);
-        return new Savings(group, c, rate, quantity, saved, price.price(), price.estimated(),
+        return new Savings(group, c, rate, quantity, saved, price.price(), price.source(),
                 savedQty.multiply(price.price()), savedQty.multiply(data.carbonOf(group)));
     }
 

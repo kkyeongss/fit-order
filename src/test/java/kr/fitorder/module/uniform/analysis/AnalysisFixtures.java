@@ -43,7 +43,7 @@ final class AnalysisFixtures {
         headcounts.forEach((y, n) -> hc.put(y, new YearHeadcount(y, LocalDate.of(y, 12, 31), n)));
         Map<UniformItemGroup, UnitPrice> prices = new EnumMap<>(UniformItemGroup.class);
         for (UniformItemGroup g : UniformItemGroup.values()) {
-            prices.put(g, new UnitPrice(new BigDecimal("50000"), false));
+            prices.put(g, new UnitPrice(new BigDecimal("50000"), UniformDataset.PriceSource.MANUAL));
         }
         Map<UniformItemGroup, BigDecimal> carbon = new EnumMap<>(UniformItemGroup.class);
         for (UniformItemGroup g : UniformItemGroup.values()) {

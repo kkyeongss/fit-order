@@ -50,7 +50,7 @@ final class RecommendationExcel {
                     .map(m -> m.month() + "월(" + Math.round(m.share() * 100) + "%)")
                     .reduce((a, b) -> a + ", " + b).orElse("-"), null);
             if (rec.totals().priceEstimated()) {
-                text(sheet.createRow(r++), 0, "단가 표시 '(추정)': 실제 단가 미입력 품목은 추정 단가를 씀", null);
+                text(sheet.createRow(r++), 0, "단가: 입력 단가 > 조달청 쇼핑몰 시장가(중앙값) > 추정 단가 순으로 씀", null);
             }
             r++;
             Row head = sheet.createRow(r++);
@@ -74,7 +74,7 @@ final class RecommendationExcel {
                     num(row, 6, item.unitPrice().doubleValue(), number);
                     num(row, 7, item.unitPrice().multiply(BigDecimal.valueOf(line.quantity())).doubleValue(), number);
                     if (first) {
-                        text(row, 8, rule + (item.priceEstimated() ? " 단가(추정)." : ""), null);
+                        text(row, 8, rule + " 단가: " + item.priceSource().label() + ".", null);
                         first = false;
                     }
                 }
@@ -95,6 +95,19 @@ final class RecommendationExcel {
                             + "(사이즈 미스매치율 × 추천 수량 × 개선률 %.0f%%)", rec.totals().savedQuantity(),
                     rec.totals().savedAmount().longValue(), rec.totals().carbonKg().doubleValue(),
                     rec.improvementRate() * 100), null);
+            for (var g : rec.greenProducts()) {
+                if (g.validCount() > 0) {
+                    text(sheet.createRow(r++), 0, String.format("녹색제품(환경표지 인증 유효): %s %d개 제품, %d개 기업. 예) %s",
+                            g.label(), g.validCount(), g.companyCount(), String.join(", ", g.examples())), null);
+                }
+            }
+            for (var m : rec.marketPrices()) {
+                if (m.ecoCount() > 0) {
+                    text(sheet.createRow(r++), 0, String.format("녹색구매 참고: %s 환경표지제품 %d건, 중앙값 %,d원 "
+                                    + "(쇼핑몰 전체 %d건 중앙값 %,d원)", m.label(), m.ecoCount(),
+                            m.ecoMedianPrice().longValue(), m.sampleCount(), m.medianPrice().longValue()), null);
+                }
+            }
 
             int[] widths = {12, 22, 8, 10, 10, 10, 11, 13, 90};
             for (int i = 0; i < widths.length; i++) {

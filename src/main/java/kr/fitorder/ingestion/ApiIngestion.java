@@ -1,7 +1,5 @@
 package kr.fitorder.ingestion;
 
-import java.net.URLDecoder;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -100,19 +98,12 @@ public class ApiIngestion implements DataIngestion {
         return data instanceof List<?> list ? (List<Map<String, Object>>) list : List.of();
     }
 
-    /** 포털은 Encoding 키(%2B 등 포함)와 Decoding 키를 함께 준다. 어느 쪽이든 원래 값으로 바꿔 한 번만 인코딩한다. */
     private String serviceKey() {
-        String key = properties.dataGoKr().serviceKey();
-        if (key == null || key.isBlank()) {
-            throw new BusinessException("공공데이터포털 인증키(DATA_GO_KR_SERVICE_KEY)가 설정되지 않았습니다.");
-        }
-        key = key.strip();
-        return key.contains("%") ? URLDecoder.decode(key, StandardCharsets.UTF_8) : key;
+        return properties.dataGoKr().decodedKey();
     }
 
     /** 인증키가 설정돼 있는지(값은 내보내지 않는다). */
     public boolean keyConfigured() {
-        String key = properties.dataGoKr().serviceKey();
-        return key != null && !key.isBlank();
+        return properties.dataGoKr().configured();
     }
 }

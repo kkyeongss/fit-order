@@ -37,6 +37,9 @@ import kr.fitorder.module.uniform.analysis.UniformDatasetLoader;
 import kr.fitorder.module.uniform.analysis.UnitPriceService;
 import kr.fitorder.module.uniform.cleansing.SizeMappingService;
 import kr.fitorder.module.uniform.domain.UniformItemGroup;
+import kr.fitorder.module.uniform.analysis.UniformDataset.PriceSource;
+import kr.fitorder.module.uniform.price.GreenProductService;
+import kr.fitorder.module.uniform.price.MarketPriceService;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -74,13 +77,15 @@ class AnalysisIntegrationTest {
     @Autowired RecommendationService recommendations;
     @Autowired UnitPriceService prices;
     @Autowired SizeMappingService sizeMappings;
+    @Autowired MarketPriceService market;
+    @Autowired GreenProductService green;
     @Autowired JdbcTemplate jdbc;
     @Autowired MockMvc mvc;
 
     @BeforeEach
     void load() throws IOException {
         jdbc.execute("truncate uniform_order, headcount, load_history, audit_log, size_mapping, unit_price, "
-                + "esg_metric_value restart identity cascade");
+                + "esg_metric_value, market_price, green_product restart identity cascade");
         jdbc.execute("delete from data_source");
         synchronizer.run(null);
         upload("uniform-order", "data/한국체육산업개발주식회사_근무복 주문현황_20260827.csv");
@@ -138,13 +143,67 @@ class AnalysisIntegrationTest {
         // 단가 미입력: 추정 단가 53,000원 (저장된 절감 수량은 소수 4자리로 반올림돼 있다)
         assertThat(before.doubleValue()).isCloseTo(savedQty.doubleValue() * 53000, within(10.0));
 
-        prices.update(List.of(new UnitPriceService.Change(UniformItemGroup.SHIRT, new BigDecimal("30000"), false)),
+        prices.update(List.of(new UnitPriceService.Change(UniformItemGroup.SHIRT, new BigDecimal("30000"))),
                 "admin");
 
         assertThat(metric("saved-amount", "2023-2025", "셔츠", Basis.DEDUP).doubleValue())
                 .isCloseTo(savedQty.doubleValue() * 30000, within(1.0));
         assertThat(jdbc.queryForObject("select count(*) from audit_log where action = 'PRICE_UPDATE'", Integer.class))
                 .isEqualTo(1);
+    }
+
+    @Test
+    void 시장가를_올리면_표본이_충분한_품목만_시장가를_쓰고_입력_단가가_우선한다() {
+        StringBuilder csv = new StringBuilder("물품규격명,계약가격금액,물품단위,의무구매대상인증명\n");
+        int[] pants = {36000, 38000, 40000, 42000, 44000, 60000};
+        for (int i = 0; i < pants.length; i++) {
+            csv.append("\"근무복, 업체").append(i).append(", M").append(i).append(", 하계용(하의/남성용)\",")
+                    .append(pants[i]).append(",매,").append(i == 5 ? "환경표지제품" : "해당 없음").append("\n");
+        }
+        csv.append("\"근무복, 업체, V1, 근무용 조끼\",30000,매,해당 없음\n");   // 조끼 1건: 표본 부족
+        BigDecimal before = metric("saved-amount", "2023-2025", "바지", Basis.DEDUP);
+
+        var result = market.upload(csv.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8), "admin");
+
+        assertThat(result.itemCount()).isEqualTo(7);
+        var byGroup = prices.list().stream().collect(java.util.stream.Collectors.toMap(p -> p.group(), p -> p));
+        assertThat(byGroup.get(UniformItemGroup.PANTS).source()).isEqualTo(PriceSource.MARKET);
+        assertThat(byGroup.get(UniformItemGroup.PANTS).price()).isEqualByComparingTo("41000");   // 6건 중앙값
+        assertThat(byGroup.get(UniformItemGroup.VEST).source()).isEqualTo(PriceSource.ESTIMATE);
+        // 절감액이 시장가로 다시 계산된다 (53,000원 → 41,000원)
+        BigDecimal after = metric("saved-amount", "2023-2025", "바지", Basis.DEDUP);
+        assertThat(after.doubleValue()).isCloseTo(before.doubleValue() * 41000 / 53000, within(1.0));
+        assertThat(market.list().stream().filter(m -> m.group() == UniformItemGroup.PANTS).findFirst().orElseThrow()
+                .ecoCount()).isEqualTo(1);
+
+        // 직접 입력한 단가가 시장가보다 우선한다
+        prices.update(List.of(new UnitPriceService.Change(UniformItemGroup.PANTS, new BigDecimal("45000"))), "admin");
+        assertThat(prices.list().stream().filter(p -> p.group() == UniformItemGroup.PANTS).findFirst().orElseThrow()
+                .source()).isEqualTo(PriceSource.MANUAL);
+    }
+
+    @Test
+    void 녹색제품을_올리면_발주_추천에_품목군별_유효_인증_제품이_나온다() {
+        String csv = """
+                상품ID,상품명,인증종료일,인증상태,인증기업명
+                1,근무복(하계 바지),20291231,인증,다원
+                2,근무 바지,20291231,인증,한일
+                3,근무복 셔츠,20201231,만료,다원
+                4,근무복,20291231,인증,부창
+                """;
+        var result = green.upload(csv.getBytes(java.nio.charset.StandardCharsets.UTF_8), "admin");
+
+        assertThat(result.productCount()).isEqualTo(4);
+        assertThat(result.validCount()).isEqualTo(3);
+        Recommendation rec = recommendations.recommend(new Request(null, null, null, null));
+        var pants = rec.greenProducts().stream().filter(g -> g.group() == UniformItemGroup.PANTS).findFirst()
+                .orElseThrow();
+        assertThat(pants.validCount()).isEqualTo(2);
+        assertThat(pants.companyCount()).isEqualTo(2);
+        var shirt = rec.greenProducts().stream().filter(g -> g.group() == UniformItemGroup.SHIRT).findFirst()
+                .orElseThrow();
+        assertThat(shirt.validCount()).isZero();   // 인증 만료
+        assertThat(rec.greenProducts()).anyMatch(g -> g.group() == null && g.validCount() == 1);
     }
 
     @Test

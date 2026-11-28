@@ -27,7 +27,26 @@ public record UniformDataset(Basis basis, List<OrderLine> lines, Map<Integer, Ye
     public record YearHeadcount(int year, LocalDate baseDate, int headcount) {
     }
 
-    public record UnitPrice(BigDecimal price, boolean estimated) {
+    /** 단가 출처: 직접 입력, 조달청 쇼핑몰 시장가, 설정의 추정 단가. */
+    public enum PriceSource {
+        MANUAL("입력 단가"), MARKET("조달청 시장가"), ESTIMATE("추정");
+
+        private final String label;
+
+        PriceSource(String label) {
+            this.label = label;
+        }
+
+        public String label() {
+            return label;
+        }
+    }
+
+    public record UnitPrice(BigDecimal price, PriceSource source) {
+
+        public boolean estimated() {
+            return source == PriceSource.ESTIMATE;
+        }
     }
 
     public UniformDataset {

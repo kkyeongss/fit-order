@@ -11,6 +11,7 @@ import java.util.OptionalDouble;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import kr.fitorder.module.uniform.analysis.UniformAnalysis.Savings;
+import kr.fitorder.module.uniform.analysis.UniformDataset.PriceSource;
 import kr.fitorder.module.uniform.analysis.UniformDataset.YearHeadcount;
 import kr.fitorder.module.uniform.domain.UniformItemGroup;
 import org.springframework.stereotype.Component;
@@ -43,7 +44,11 @@ public class RecommendationCalculator {
     public record ItemPlan(UniformItemGroup group, String label, TotalEstimate total, Integer headcountYear,
                            Integer baseHeadcount, double headcountFactor, int baseQuantity, double safetyRate,
                            int safetyQuantity, int quantity, String sizeRule, List<SizeLine> sizes,
-                           BigDecimal unitPrice, boolean priceEstimated, BigDecimal amount, Savings savings) {
+                           BigDecimal unitPrice, PriceSource priceSource, BigDecimal amount, Savings savings) {
+
+        public boolean priceEstimated() {
+            return priceSource == PriceSource.ESTIMATE;
+        }
     }
 
     public record MonthShare(int month, int quantity, double share) {
@@ -97,7 +102,7 @@ public class RecommendationCalculator {
                 .orElse(null);
         return new ItemPlan(group, group.label(), total, base == null ? null : headcountYear,
                 base == null ? null : base.headcount(), factor, baseQuantity, safetyRate, safety,
-                baseQuantity + safety, sizeRule(data, group, targetYear), sizes, price.price(), price.estimated(),
+                baseQuantity + safety, sizeRule(data, group, targetYear), sizes, price.price(), price.source(),
                 price.price().multiply(BigDecimal.valueOf(baseQuantity + safety)), savings);
     }
 

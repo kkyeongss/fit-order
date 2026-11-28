@@ -120,3 +120,26 @@ fitorder:
       default-unit-price: 53000     # 단가 미입력 품목의 추정 단가(원)
       backtest-from-year: 2022
       backtest-to-year: 2025
+
+    # 조달청 나라장터 쇼핑몰 근무복 시장가(공공데이터포털 15129471). 인증키는 DATA_GO_KR_SERVICE_KEY를 같이 쓴다.
+    # 쇼핑몰에서는 셔츠·바지 모두 품명이 '근무복'이고 규격명 설명으로만 구분된다(2026-11 실데이터 423건 확인).
+    market-price:
+      url: https://apis.data.go.kr/1230000/at/ShoppingMallPrdctInfoService
+      operations: [getMASCntrctPrdctInfoList, getUcntrctPrdctInfoList]
+      item-name: 근무복
+      months: 12                    # API의 등록일시 범위 제한이 1년
+      min-samples: 5                # 이보다 적으면 시장가로 안 쓰고 추정 단가 유지
+      exclude-keywords: ["상/하", "상하의"]   # 상·하의 한 벌 묶음
+      rules:                        # 규격명 설명 키워드 → 품목군. 위에서부터 처음 맞는 규칙
+        - {group: PADDING_VEST, keywords: [패딩조끼, 패딩 조끼]}
+        - {group: VEST, keywords: [조끼]}
+        - {group: JUMPER, keywords: [점퍼, 잠바, 파카, 방한복]}
+        - {group: JACKET, keywords: [재킷, 자켓]}
+        - {group: PANTS, keywords: [하의, 바지, 슬랙스]}
+        - {group: SHIRT, keywords: [셔츠, 하계, 혹서기]}       # 하계·혹서기 상의 = 셔츠형 근무복
+        - {group: JACKET, keywords: [동계, 춘추, 추동]}        # 춘추·동계 상의 = 재킷형 근무복
+
+    # 한국환경산업기술원 녹색제품 정보조회 서비스 GW(공공데이터포털 15158379). 오퍼레이션 getServiceList, XML.
+    green-product:
+      url: https://apis.data.go.kr/B552518/EnvironmentSignalRecognitionInformationInquiryService
+      keywords: [근무복, 작업복, 셔츠, 바지, 점퍼, 조끼]   # 제품명 검색(prod_gubn=2)

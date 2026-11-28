@@ -31,6 +31,13 @@ docker compose up -d        # PostgreSQL 18
 | `uniform-order-info` | 근무복 주문현황정보 (점퍼·바지·조끼) | CSV 업로드 |
 | `headcount` | 정원현황 | 공공데이터포털 Open API |
 
+외부 데이터(같은 인증키 `DATA_GO_KR_SERVICE_KEY`로 호출, 망분리 환경은 CSV 업로드):
+
+| 데이터 | 쓰는 곳 |
+| --- | --- |
+| 조달청_나라장터쇼핑몰 품목정보 서비스 | 품목군별 시장가(근무복 계약가격 중앙값), 환경표지제품 가격 |
+| 한국환경산업기술원_녹색제품 정보조회 서비스 | 환경표지 인증 근무복 목록(인증기간·기업), 발주 추천의 녹색구매 비교 |
+
 출처: 공공데이터포털, 한국체육산업개발주식회사. 근무복 CSV는 `data/`에 있다.
 
 ## 구현된 기능
@@ -64,7 +71,8 @@ docker compose up -d        # PostgreSQL 18
 | 절감 수량·절감액·탄소 감축량 | 미스매치율 × 연간 주문량 × 개선률 50%, × 단가, × 탄소계수 | 최근 구간 |
 
 - 불완전 연도(첫 해·마지막 해 중 1년치가 안 되는 해: 2017, 2026)는 지표·평균·추천·백테스트에서 뺀다
-- 단가를 입력하지 않은 품목은 추정 단가(5.3만원)로 계산하고 '추정'으로 표시
+- 단가 우선순위: 직접 입력 > 조달청 쇼핑몰 시장가(최근 1년 품목군별 중앙값, 표본 5건 이상) > 추정 단가 5.3만원. 출처를 화면·엑셀에 표시
+- 시장가 품목군은 규격명 설명 키워드로 나눈다(설정 `fitorder.uniform.market-price.rules`). 쇼핑몰 API 페이지가 불안정해 새 상품이 안 나올 때까지 다시 읽는다
 
 **발주 추천** (규칙 기반, 계수는 `fitorder.uniform.analysis` 설정)
 1. 총량 = 직전 2년 평균. 재킷·패딩조끼는 격년 주문이라 같은 홀짝의 가장 최근 해 값
@@ -97,7 +105,11 @@ docker compose up -d        # PostgreSQL 18
 | GET | `/api/uniform/recommendation/export` | 발주표 엑셀 (추천과 같은 입력을 쿼리 파라미터로) |
 | GET | `/api/uniform/backtest` | 추천 로직 백테스트 |
 | GET | `/api/admin/quality` | 품질 리포트 (출처별 중복·플래그·예시 행·미매핑 사이즈) |
-| GET·PUT | `/api/admin/prices` | 품목군별 단가 조회·입력 (`[{group, price, estimated}]`) |
+| GET·PUT | `/api/admin/prices` | 품목군별 단가 조회(출처 포함)·입력 (`[{group, price}]`) |
+| GET | `/api/admin/market-prices` | 조달청 시장가 |
+| POST | `/api/admin/market-prices/fetch` · `/upload` | 조달청 API로 갱신 · CSV 업로드 |
+| GET | `/api/admin/green-products` | 환경표지 인증 근무복 |
+| POST | `/api/admin/green-products/fetch` · `/upload` | 녹색제품 API로 갱신 · CSV 업로드 |
 | POST | `/api/admin/uploads` | CSV 업로드·적재 (`source`, `file`, 선택 `baseYear`) |
 | GET | `/api/admin/uploads` | 적재 이력 |
 | GET | `/api/admin/sources` | 데이터 원천 목록 |
@@ -117,6 +129,7 @@ kr.fitorder
 │   ├── cleansing    중복·결측·코드 점검, 사이즈 매핑, 품질 리포트
 │   ├── analysis     지표 계산식, 발주 추천, 백테스트, 단가, 화면용 집계
 │   ├── metric       지표 계산기(MetricCalculator 구현 8개)
+│   ├── price        조달청 시장가·녹색제품(ExternalSource 구현)
 │   ├── domain       엔티티·저장소
 │   └── api          REST API
 ├── admin            업로드·원천 관리 API, 감사 로그
@@ -130,6 +143,6 @@ kr.fitorder
 | `DataIngestion` | 원천을 공통 레코드로 읽기 (`CsvUploadIngestion`, `ApiIngestion`) |
 | `QualityChecker` | 중복·결측·코드 점검 |
 | `MetricCalculator` | 지표 하나 계산. `EsgDataChangedEvent`가 오면 `MetricService`가 항목의 지표를 모두 다시 계산 |
-| `ExternalSource` | 외부 데이터 조회 (구현 예정) |
+| `ExternalSource` | 외부 데이터 조회 (`ProcurementMallSource`, `GreenProductSource`) |
 
 새 ESG 항목은 `EsgModule`과 `SourceLoader` 구현을 추가하면 기존 코드 수정 없이 붙는다.
