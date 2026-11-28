@@ -31,6 +31,8 @@ docker run -d -p 8080:8080 --env-file .env \
 
 이미지에 화면이 포함되어 있다. 기본 JVM 옵션은 작은 서버용(`-Xmx384m`, 실행 시 약 285MB). `JAVA_OPTS`로 바꾼다.
 
+메모리 1GB 서버(시연 서버)에는 Docker 없이 jar + systemd로 올린다: `deploy/README.md`.
+
 | 계정 | 역할 |
 | --- | --- |
 | `user / user1234` | 담당자(USER) |
@@ -164,6 +166,8 @@ kr.fitorder
 │   └── api          REST API
 ├── admin            업로드·원천 관리 API, 감사 로그
 └── config           보안 설정, 로그인 API
+
+deploy/              서버 배포 스크립트(setup-server.sh, deploy.sh, add-domain.sh)와 systemd 서비스 파일
 
 frontend/            React 화면 (src/pages: 화면별, api.ts: 서버 통신, hooks.tsx, ui.tsx: 공통 부품)
 ```

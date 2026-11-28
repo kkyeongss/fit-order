@@ -1,0 +1,30 @@
+[Unit]
+Description=핏오더 (근무복 발주 추천)
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+User=fitorder
+Group=fitorder
+WorkingDirectory=/opt/fitorder
+# 비밀값(DB 비밀번호, 인증키, 시연 계정 비밀번호)은 이 파일에만 둔다. 권한 600.
+EnvironmentFile=/etc/fitorder/fitorder.env
+# 작은 서버(RAM 1GB)용 JVM 설정. 넉넉한 서버에서는 -Xmx를 키운다.
+Environment="JAVA_OPTS=-Xmx160m -Xss512k -XX:+UseSerialGC -XX:TieredStopAtLevel=1 -XX:MaxMetaspaceSize=128m -XX:ReservedCodeCacheSize=48m -XX:-UsePerfData"
+ExecStart=/usr/bin/java $JAVA_OPTS -jar /opt/fitorder/fitorder.jar
+SuccessExitStatus=143
+Restart=on-failure
+RestartSec=10
+
+# 같은 서버의 다른 서비스를 지키는 장치: 메모리가 모자라면 핏오더가 먼저 느려지고(High), 먼저 종료된다(Max, OOMScoreAdjust)
+MemoryHigh=400M
+MemoryMax=480M
+OOMScoreAdjust=300
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+
+[Install]
+WantedBy=multi-user.target
