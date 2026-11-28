@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import { api, query } from '../api'
 import { carbon, dateTime, GROUPS, num, pct, PRICE_SOURCE, signedPct, splitSizeSource, won } from '../format'
-import { useAction, useBasis, useGet, useUser } from '../hooks'
+import { useAction, useBasis, useGet } from '../hooks'
 import type { Backtest, GroupCode, HeadcountView, ItemPlan, PlanCompare, PlanSummary, Recommendation, SizeLine } from '../types'
 import { Async, Badge, BasisHint, Card, Collapse, Notice, Stat } from '../ui'
 
@@ -20,7 +20,6 @@ const stockKey = (group: string, source: string, rawSize: string | null) => `${g
 
 export default function Recommend() {
   const { basis } = useBasis()
-  const user = useUser()
   const headcount = useGet<HeadcountView>('/api/uniform/headcount')
   const plans = useGet<PlanSummary[]>('/api/uniform/plans')
   const [form, setForm] = useState<Form>({ year: '', headcount: '', groups: [], families: null })
@@ -122,8 +121,6 @@ export default function Recommend() {
         )}
       </div>
 
-      {!user.canEdit && <Notice tone="info">부서장 계정은 조회 전용입니다. 재고·단가·발주안 입력과 저장은 담당자 계정으로 하세요.</Notice>}
-
       <Card title="입력">
         <form className="form-row" onSubmit={submit}>
           <label className="field">
@@ -198,14 +195,7 @@ export default function Recommend() {
       {result && <Result rec={result} onChanged={recompute} overrides={overrides} setOverride={setOverride} />}
       {!result && !error && <Notice tone="info">계산하는 중입니다…</Notice>}
 
-      {result && (
-        <PlansCard
-          plans={plans}
-          onChanged={plans.reload}
-          canEdit={user.canEdit}
-          save={{ ...request(form, overrides), year: result.year }}
-        />
-      )}
+      {result && <PlansCard plans={plans} onChanged={plans.reload} save={{ ...request(form, overrides), year: result.year }} />}
 
       <Collapse title="추천 로직 검증: 백테스트 (과거 해를 모르는 해로 두고 예측해 실제와 비교)">
         <BacktestTable />
@@ -475,7 +465,6 @@ function ItemCard({
   override: number | undefined
   setOverride: (v: number | null) => void
 }) {
-  const user = useUser()
   const src = PRICE_SOURCE[item.priceSource]
   const s = item.savings
   const sp = useMemo(() => splitSizeSource(item.sizes.map((z) => z.size)), [item.sizes])
@@ -583,7 +572,7 @@ function ItemCard({
               <li className="muted">최근 연도별 주문량: {item.history.map((h) => `${h.year}년 ${num(h.quantity)}벌`).join(' · ')}</li>
             </ul>
 
-            {user.canEdit && (
+            {
               <div className="form-row item-tools">
                 <label className="field">
                   총량 직접 지정(벌)
@@ -653,7 +642,7 @@ function ItemCard({
                   )}
                 </div>
               </div>
-            )}
+            }
             {error && <Notice tone="bad">{error}</Notice>}
 
             <div className="table-wrap">
@@ -704,7 +693,7 @@ function ItemCard({
                         <td className="num">{pct(z.ratio)}</td>
                         <td className="num">{num(z.quantity)}</td>
                         <td className="num">
-                          {user.canEdit ? (
+                          {
                             <input
                               type="number"
                               min={0}
@@ -714,9 +703,7 @@ function ItemCard({
                               placeholder="0"
                               onChange={(e) => setEdits({ ...edits, [key]: e.target.value })}
                             />
-                          ) : (
-                            num(z.stock)
-                          )}
+                          }
                         </td>
                         <td className="num">
                           <strong>
@@ -764,7 +751,7 @@ function ItemCard({
                 </tbody>
               </table>
             </div>
-            {user.canEdit && (
+            {
               <div className="form-row" style={{ marginTop: 10 }}>
                 <button className="primary" disabled={busy || !dirty} onClick={saveStock}>
                   {busy ? '저장하는 중…' : '재고 저장'}
@@ -775,7 +762,7 @@ function ItemCard({
                     : '재고 칸에 지금 남은 수량을 입력하세요. 저장한 값은 모든 담당자가 함께 봅니다.'}
                 </span>
               </div>
-            )}
+            }
             {s && (
               <p className="muted" style={{ marginTop: 10 }}>
                 예상 절감(연): 사이즈 불일치율 {pct(s.mismatchRate)} × {num(s.annualQuantity)}벌 × 개선률 →{' '}
@@ -857,12 +844,10 @@ function GreenCard({ rec }: { rec: Recommendation }) {
 function PlansCard({
   plans,
   onChanged,
-  canEdit,
   save,
 }: {
   plans: { data: PlanSummary[] | null; error: string | null; loading: boolean; reload: () => void }
   onChanged: () => void
-  canEdit: boolean
   save: object
 }) {
   const [note, setNote] = useState('')
@@ -892,7 +877,7 @@ function PlansCard({
       title="저장한 발주안과 실제 비교"
       subtitle="발주를 확정했으면 지금 계산을 저장해 두세요. 그해 실제 주문 데이터가 들어오면 계획과 실제를 비교해, 과잉·부족이 실제로 줄었는지 확인합니다."
     >
-      {canEdit && (
+      {
         <div className="form-row" style={{ marginBottom: 12 }}>
           <label className="field" style={{ flex: 1, minWidth: 220 }}>
             메모 (예: 4월 정기 발주 확정)
@@ -911,7 +896,7 @@ function PlansCard({
           </button>
           {saved && <Badge tone="ok">저장했습니다</Badge>}
         </div>
-      )}
+      }
       {error && <Notice tone="bad">{error}</Notice>}
       <Async state={plans}>
         {(list) =>
@@ -948,11 +933,11 @@ function PlansCard({
                         <button className="link" onClick={() => open(p.id)}>
                           실제와 비교
                         </button>{' '}
-                        {canEdit && (
+                        {
                           <button className="link" onClick={() => remove(p.id)}>
                             삭제
                           </button>
-                        )}
+                        }
                       </td>
                     </tr>
                   ))}

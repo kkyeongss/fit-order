@@ -376,7 +376,7 @@ export interface AuditRow {
 }
 export interface UserView {
   username: string
-  role: 'USER' | 'MANAGER' | 'ADMIN'
+  role: 'USER' | 'ADMIN'
   roleLabel: string
   enabled: boolean
   createdAt: string

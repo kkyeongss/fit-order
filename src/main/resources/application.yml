@@ -35,9 +35,6 @@ fitorder:
       - username: admin
         password: ${FITORDER_ADMIN_PASSWORD:admin1234}
         role: ADMIN
-      - username: manager
-        password: ${FITORDER_MANAGER_PASSWORD:manager1234}
-        role: MANAGER
 
   external:
     data-go-kr:

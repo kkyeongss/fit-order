@@ -24,9 +24,8 @@ import tools.jackson.databind.json.JsonMapper;
 /**
  * 역할(권한):
  * <ul>
- *   <li>USER(담당자): 조회 + 단가·재고·발주안 입력</li>
- *   <li>MANAGER(부서장): 조회 + 변경 기록 조회. 데이터를 바꾸지 못한다</li>
- *   <li>ADMIN(관리자): 담당자 권한 + 데이터 관리·계정·ESG 항목 설정</li>
+ *   <li>USER(사용자: 실무 담당자·부서장): 조회 + 단가·재고·발주안 입력 + 변경 기록 조회</li>
+ *   <li>ADMIN(관리자): 사용자 권한 + 데이터 관리·계정·ESG 항목 설정</li>
  * </ul>
  * 계정은 DB(users, authorities)에 있고 처음 시작할 때 설정(application.yml)으로 채운다.
  */
@@ -50,10 +49,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/**").authenticated()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/api/esg/**").hasRole("ADMIN")
-                        .requestMatchers("/api/audit/**").hasAnyRole("ADMIN", "MANAGER")
-                        .requestMatchers(HttpMethod.GET, "/api/**").hasAnyRole("USER", "MANAGER", "ADMIN")
-                        // 추천 계산은 POST지만 아무것도 저장하지 않는 조회라 부서장도 쓴다
-                        .requestMatchers(HttpMethod.POST, "/api/uniform/recommendation").hasAnyRole("USER", "MANAGER", "ADMIN")
+                        .requestMatchers("/api/audit/**").hasAnyRole("USER", "ADMIN")
                         .requestMatchers("/api/**").hasAnyRole("USER", "ADMIN")
                         .anyRequest().permitAll())
                 .formLogin(form -> form

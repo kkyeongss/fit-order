@@ -4,8 +4,7 @@ import { useAction } from '../hooks'
 import { Notice } from '../ui'
 
 const DEMO = [
-  { username: 'user', password: 'user1234', label: '담당자(USER)', note: '조회 + 단가·재고·발주안 입력' },
-  { username: 'manager', password: 'manager1234', label: '부서장(MANAGER)', note: '조회 전용 + 변경 기록 (입력은 못 함)' },
+  { username: 'user', password: 'user1234', label: '사용자(USER)', note: '실무 담당자·부서장: 조회 + 단가·재고·발주안 입력 + 변경 기록' },
   { username: 'admin', password: 'admin1234', label: '관리자(ADMIN)', note: '담당자 화면 + 데이터 관리·계정·ESG 항목' },
 ]
 

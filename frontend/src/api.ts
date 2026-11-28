@@ -79,10 +79,6 @@ export interface User {
   username: string
   roles: string[]
   admin: boolean
-  /** 부서장(읽기 전용) */
-  manager: boolean
-  /** 단가·재고·발주안을 입력할 수 있는 역할(담당자·관리자) */
-  canEdit: boolean
   /** 공개 시연 모드: 관리자의 데이터·설정·계정 변경이 막혀 있다 */
   demo: boolean
 }

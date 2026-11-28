@@ -32,8 +32,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 담당자(USER)가 직접 하는 일: 단가 입력, 재고 입력, 발주안 저장·비교. 조회는 부서장(MANAGER)도 한다.
- * 데이터를 바꾸는 요청은 보안 설정에서 USER·ADMIN만 허용한다.
+ * 사용자(USER)가 직접 하는 일: 단가 입력, 재고 입력, 발주안 저장·비교.
  */
 @RestController
 @RequestMapping("/api/uniform")

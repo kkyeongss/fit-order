@@ -7,7 +7,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** 변경 기록(audit_log) 조회. 누가 언제 무엇을(단가, 적재, 계정, 재고 등) 바꿨는지 부서장·관리자가 본다. */
+/** 변경 기록(audit_log) 조회. 누가 언제 무엇을(단가, 적재, 계정, 재고 등) 바꿨는지 사용자·관리자가 본다. */
 @Service
 public class AuditQueryService {
 

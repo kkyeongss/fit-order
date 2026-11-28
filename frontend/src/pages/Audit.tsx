@@ -9,7 +9,7 @@ interface Filters {
   usernames: string[]
 }
 
-/** 변경 기록: 누가 언제 무엇을 바꿨는지(단가, 불러오기, 재고, 계정 등). 부서장·관리자만 본다. 기록은 서버가 남기며 여기서는 고칠 수 없다. */
+/** 변경 기록: 누가 언제 무엇을 바꿨는지(단가, 불러오기, 재고, 계정 등). 기록은 서버가 남기며 여기서는 고칠 수 없다. */
 export default function Audit() {
   const [action, setAction] = useState('')
   const [username, setUsername] = useState('')

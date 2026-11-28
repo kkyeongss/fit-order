@@ -98,8 +98,8 @@ class AnalysisIntegrationTest {
     void load() throws IOException {
         jdbc.execute("truncate uniform_order, headcount, load_history, audit_log, size_mapping, unit_price, "
                 + "esg_metric_value, market_price, green_product, stock, order_plan restart identity cascade");
-        // 테스트가 만든 계정은 지운다(시연 계정 3개는 시작할 때 등록된 것을 그대로 쓴다)
-        jdbc.execute("delete from users where username not in ('user', 'admin', 'manager')");
+        // 테스트가 만든 계정은 지운다(시연 계정 2개는 시작할 때 등록된 것을 그대로 쓴다)
+        jdbc.execute("delete from users where username not in ('user', 'admin')");
         jdbc.execute("delete from data_source");
         jdbc.execute("update esg_item set enabled = true, load_method = 'UPLOAD'");
         synchronizer.run(null);
@@ -562,7 +562,7 @@ class AnalysisIntegrationTest {
             assertThat(records).hasSize(327 + 331);
             assertThat(records.getFirst().get("같은 행이 처음 나온 줄")).isNotBlank();
         }
-        mvc.perform(get("/api/uniform/duplicates/export").with(user("m").roles("MANAGER")))
+        mvc.perform(get("/api/uniform/duplicates/export").with(user("m").roles("USER")))
                 .andExpect(status().isOk())
                 .andExpect(header().string("Content-Disposition", org.hamcrest.Matchers.containsString("attachment")));
     }
@@ -587,24 +587,10 @@ class AnalysisIntegrationTest {
 
     @Test
     void 역할에_따라_조회_입력_변경_기록_접근이_나뉜다() throws Exception {
-        var manager = user("m").roles("MANAGER");
         var worker = user("w").roles("USER");
-        // 부서장: 조회와 변경 기록은 되고 입력은 안 된다
-        mvc.perform(get("/api/uniform/summary").with(manager)).andExpect(status().isOk());
-        mvc.perform(get("/api/audit").with(manager)).andExpect(status().isOk());
-        mvc.perform(put("/api/uniform/stock").with(manager).with(csrf()).contentType(MediaType.APPLICATION_JSON)
-                .content("[]")).andExpect(status().isForbidden());
-        mvc.perform(put("/api/uniform/prices").with(manager).with(csrf()).contentType(MediaType.APPLICATION_JSON)
-                .content("[]")).andExpect(status().isForbidden());
-        mvc.perform(post("/api/uniform/plans").with(manager).with(csrf()).contentType(MediaType.APPLICATION_JSON)
-                .content("{}")).andExpect(status().isForbidden());
-        // 추천 계산은 POST지만 저장하지 않는 조회라 부서장도 쓴다
-        mvc.perform(post("/api/uniform/recommendation").with(manager).with(csrf()).contentType(MediaType.APPLICATION_JSON)
-                .content("{}")).andExpect(status().isOk());
-        // 담당자: 입력은 되고 변경 기록·관리자 화면은 안 된다
-        mvc.perform(get("/api/audit").with(worker)).andExpect(status().isForbidden());
+        // 사용자: 조회·입력·변경 기록은 되고 관리자 화면은 안 된다
+        mvc.perform(get("/api/audit").with(worker)).andExpect(status().isOk());
         mvc.perform(get("/api/admin/users").with(worker)).andExpect(status().isForbidden());
-        mvc.perform(get("/api/admin/users").with(manager)).andExpect(status().isForbidden());
         mvc.perform(put("/api/uniform/prices").with(worker).with(csrf()).contentType(MediaType.APPLICATION_JSON)
                 .content("[{\"group\":\"JUMPER\",\"price\":45000}]")).andExpect(status().isOk())
                 .andExpect(jsonPath("$[?(@.group == 'JUMPER')].source").value("MANUAL"));
@@ -624,8 +610,8 @@ class AnalysisIntegrationTest {
     @Test
     void 계정을_만들고_역할을_바꾸고_비밀번호를_바꾼다() throws Exception {
         var created = userAdmin.create(new kr.fitorder.config.UserAdminService.Create("kim01", "password1234",
-                kr.fitorder.config.UserAdminService.Role.MANAGER), "admin");
-        assertThat(created.roleLabel()).isEqualTo("부서장");
+                kr.fitorder.config.UserAdminService.Role.USER), "admin");
+        assertThat(created.roleLabel()).isEqualTo("사용자");
         assertThatThrownBy(() -> userAdmin.create(new kr.fitorder.config.UserAdminService.Create("kim01", "password1234",
                 kr.fitorder.config.UserAdminService.Role.USER), "admin")).hasMessageContaining("이미 있는");
         assertThatThrownBy(() -> userAdmin.create(new kr.fitorder.config.UserAdminService.Create("lee02", "1234",
@@ -635,7 +621,7 @@ class AnalysisIntegrationTest {
 
         // 새 계정으로 로그인해 비밀번호를 바꾼다(현재 비밀번호 확인 필요)
         var login = mvc.perform(post("/api/auth/login").with(csrf()).param("username", "kim01").param("password", "password1234"))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.manager").value(true)).andExpect(jsonPath("$.canEdit").value(false))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.admin").value(false))
                 .andReturn();
         var session = (org.springframework.mock.web.MockHttpSession) login.getRequest().getSession(false);
         mvc.perform(post("/api/auth/password").session(session).with(csrf()).contentType(MediaType.APPLICATION_JSON)

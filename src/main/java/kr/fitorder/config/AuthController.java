@@ -18,19 +18,16 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     /**
-     * @param roles   USER, MANAGER, ADMIN
+     * @param roles   USER, ADMIN
      * @param admin   관리자
-     * @param manager 부서장(읽기 전용)
-     * @param canEdit 단가·재고·발주안을 입력할 수 있는가(담당자·관리자)
      * @param demo    공개 시연 모드(데이터 변경이 막혀 있다)
      */
-    public record Me(String username, List<String> roles, boolean admin, boolean manager, boolean canEdit, boolean demo) {
+    public record Me(String username, List<String> roles, boolean admin, boolean demo) {
 
         static Me of(Authentication auth, boolean demo) {
             List<String> roles = auth.getAuthorities().stream().map(GrantedAuthority::getAuthority)
                     .filter(a -> a.startsWith("ROLE_")).map(a -> a.substring(5)).sorted().toList();
-            return new Me(auth.getName(), roles, roles.contains("ADMIN"), roles.contains("MANAGER") && !roles.contains("ADMIN"),
-                    roles.contains("USER") || roles.contains("ADMIN"), demo);
+            return new Me(auth.getName(), roles, roles.contains("ADMIN"), demo);
         }
     }
 

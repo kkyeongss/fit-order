@@ -16,8 +16,8 @@ import { Loading, Modal, Notice } from './ui'
 interface Route {
   id: string
   label: string
-  /** 누가 볼 수 있나: 모두 / 관리자 / 부서장·관리자 */
-  who: 'all' | 'admin' | 'overseer'
+  /** 누가 볼 수 있나: 모두 / 관리자 */
+  who: 'all' | 'admin'
   /** 메뉴에 보이지 않는 화면(주소로만 연다) */
   hidden?: boolean
   render: () => ReactNode
@@ -28,14 +28,13 @@ const ROUTES: Route[] = [
   { id: 'sizes', label: '사이즈 분석', who: 'all', render: () => <Sizes /> },
   { id: 'recommend', label: '발주 추천', who: 'all', render: () => <Recommend /> },
   { id: 'requests', label: '데이터 개선 요청', who: 'all', render: () => <Requests /> },
-  { id: 'audit', label: '변경 기록', who: 'overseer', render: () => <Audit /> },
+  { id: 'audit', label: '변경 기록', who: 'all', render: () => <Audit /> },
   { id: 'admin', label: '데이터 관리', who: 'admin', render: () => <Admin /> },
   { id: 'items', label: 'ESG 항목', who: 'admin', render: () => <Items /> },
   { id: 'report', label: '결재용 보고서', who: 'all', hidden: true, render: () => <Report /> },
 ]
 
-const allowed = (r: Route, user: User) =>
-  r.who === 'all' || (r.who === 'admin' && user.admin) || (r.who === 'overseer' && (user.admin || user.manager))
+const allowed = (r: Route, user: User) => r.who === 'all' || user.admin
 
 export default function App() {
   // undefined: 확인 중, null: 로그인 안 됨
@@ -201,7 +200,7 @@ function AccountMenu({ onLogout }: { onLogout: () => void }) {
     document.addEventListener('mousedown', onDown)
     return () => document.removeEventListener('mousedown', onDown)
   }, [open])
-  const role = user.admin ? '관리자' : user.manager ? '부서장' : '담당자'
+  const role = user.admin ? '관리자' : '사용자'
   return (
     <div className="help account" ref={box}>
       <button className="user-chip-btn" aria-expanded={open} aria-haspopup="menu" onClick={() => setOpen(!open)}>

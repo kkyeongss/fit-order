@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/** 변경 기록 조회(부서장·관리자). 기록은 서버가 남기며 이 API로는 바꿀 수 없다. */
+/** 변경 기록 조회(사용자·관리자). 기록은 서버가 남기며 이 API로는 바꿀 수 없다. */
 @RestController
 @RequestMapping("/api/audit")
 public class AuditController {

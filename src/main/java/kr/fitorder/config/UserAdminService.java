@@ -12,14 +12,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 계정 관리. 역할은 담당자(USER)·부서장(MANAGER)·관리자(ADMIN) 중 하나이고, 관리자는 담당자 권한도 가진다.
+ * 계정 관리. 역할은 사용자(USER)·관리자(ADMIN) 중 하나이고, 관리자는 사용자 권한도 가진다.
  * 비밀번호는 해시로만 저장하며, 계정을 지우지 않고 사용 중지로 막는다(변경 기록에 이름이 남도록).
  */
 @Service
 public class UserAdminService {
 
     public enum Role {
-        USER("담당자"), MANAGER("부서장"), ADMIN("관리자");
+        USER("사용자"), ADMIN("관리자");
 
         private final String label;
 
@@ -77,7 +77,7 @@ public class UserAdminService {
             throw new BusinessException("아이디는 영문·숫자·.·_·- 3~30자로 쓰세요.");
         }
         if (request.role() == null) {
-            throw new BusinessException("역할(담당자·부서장·관리자)을 고르세요.");
+            throw new BusinessException("역할(사용자·관리자)을 고르세요.");
         }
         checkPassword(username, request.password());
         if (exists(username)) {
@@ -175,7 +175,7 @@ public class UserAdminService {
 
     private Role roleOf(String username) {
         Set<String> a = Set.copyOf(jdbc.queryForList("select authority from authorities where username = ?", String.class, username));
-        return a.contains("ROLE_ADMIN") ? Role.ADMIN : a.contains("ROLE_MANAGER") ? Role.MANAGER : Role.USER;
+        return a.contains("ROLE_ADMIN") ? Role.ADMIN : Role.USER;
     }
 
     /** 사용 중인 관리자가 이 계정 하나뿐이면, 그 계정을 내리는 변경(demote)을 막는다. */

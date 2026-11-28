@@ -101,7 +101,7 @@ export const AUDIT_ACTION: Record<string, string> = {
 
 export const auditLabel = (action: string) => AUDIT_ACTION[action] ?? action
 
-export const ROLE_LABEL: Record<string, string> = { USER: '담당자', MANAGER: '부서장', ADMIN: '관리자' }
+export const ROLE_LABEL: Record<string, string> = { USER: '사용자', ADMIN: '관리자' }
 
 /** 클립보드에 복사한다. 실패하면 false. */
 export async function copyText(text: string): Promise<boolean> {
