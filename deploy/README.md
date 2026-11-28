@@ -42,7 +42,8 @@ DEPLOY_HOST=ubuntu@서버IP DEPLOY_KEY=SSH키경로 deploy/deploy.sh setup
 DEPLOY_HOST=ubuntu@서버IP DEPLOY_KEY=SSH키경로 deploy/deploy.sh
 ```
 
-화면 포함 jar를 만들어 올리고 재시작한 뒤 응답과 메모리를 확인한다. 문제가 생기면 서버에서
+화면 포함 jar를 만들어 올리고 재시작한 뒤 응답과 메모리를 확인한다.
+**화면(React)만 바뀌고 계산식은 그대로면 `QUICK=1`을 붙인다**: 시작할 때 지표 재계산을 건너뛰어 느린 서버의 부담이 줄어든다(계산식·데이터 처리를 바꾼 배포에서는 쓰지 않는다). 문제가 생기면 서버에서
 `sudo cp /opt/fitorder/fitorder.jar.bak /opt/fitorder/fitorder.jar && sudo systemctl restart fitorder`.
 
 ## 도메인 연결(HTTPS)

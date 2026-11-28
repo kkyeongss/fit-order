@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Chart, type ChartConfiguration } from 'chart.js/auto'
+import { useBasis } from './hooks'
 
 // 차트 공통 설정: 글꼴·색
 Chart.defaults.font.family = "'Pretendard', 'Apple SD Gothic Neo', 'Malgun Gothic', system-ui, sans-serif"
@@ -22,6 +23,25 @@ export function ChartBox({ config, height = 300, label }: { config: ChartConfigu
     <div style={{ height }} className="chart">
       <canvas ref={canvas} role="img" aria-label={label} />
     </div>
+  )
+}
+
+/** 지금 보고 있는 집계 기준(중복 제거/원자료)이 무슨 뜻인지 한 줄로 알려준다. 자세한 설명은 상단 '?' 버튼. */
+export function BasisHint() {
+  const { basis } = useBasis()
+  return (
+    <p className="basis-hint">
+      {basis === 'dedup' ? (
+        <>
+          집계 기준 <strong>중복 제거</strong> — 원본에서 모든 칸이 같은 행은 한 번만 셉니다. 상단의 '원자료'로 바꾸면 모든 행을 셉니다.
+        </>
+      ) : (
+        <>
+          집계 기준 <strong>원자료</strong> — 원본 파일의 모든 행을 그대로 셉니다(같은 행도 모두 포함). 상단의 '중복 제거'로 바꾸면 같은
+          행을 한 번만 셉니다.
+        </>
+      )}
+    </p>
   )
 }
 

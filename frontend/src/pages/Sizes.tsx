@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react'
 import { GROUP_COLOR, num, pct, splitSizeSource } from '../format'
 import { useBasis, useGet } from '../hooks'
 import type { SizeAnalysis } from '../types'
-import { Async, Badge, Card, ChartBox, Notice, Stat, Tabs } from '../ui'
+import { Async, Badge, BasisHint, Card, ChartBox, Notice, Stat, Tabs } from '../ui'
 
 export default function Sizes() {
   const { basis } = useBasis()
@@ -15,9 +15,8 @@ export default function Sizes() {
       <div className="page-head">
         <div>
           <h1>사이즈 분석</h1>
-          <p className="muted">
-            예전 사이즈 비율대로 주문하면 요즘 수요와 얼마나 어긋나는지 · {basis === 'dedup' ? '중복 제거 기준' : '원자료 기준'}
-          </p>
+          <p className="muted">예전 사이즈 비율대로 주문하면 요즘 수요와 얼마나 어긋나는지</p>
+          <BasisHint />
         </div>
       </div>
       <Async state={state}>

@@ -20,6 +20,9 @@ spring:
       max-request-size: 20MB
 
 fitorder:
+  metrics:
+    # 시작할 때 지표를 다시 계산한다. 계산식이 그대로인 배포(화면만 바뀜 등)에서만 false로 건너뛴다.
+    recalculate-on-start: ${FITORDER_METRICS_RECALC_ON_START:true}
   security:
     # 시연 계정. 운영 시에는 환경변수로 비밀번호를 바꾼다.
     users:

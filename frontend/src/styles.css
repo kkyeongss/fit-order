@@ -671,3 +671,57 @@ button.link {
     background: #fff;
   }
 }
+
+/* 집계 기준 설명 */
+.basis-hint {
+  margin-top: 2px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.basis-hint strong {
+  color: var(--navy);
+}
+.help {
+  position: relative;
+}
+.help-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 13px;
+  line-height: 1;
+}
+.help-btn:hover,
+.help-btn[aria-expanded='true'] {
+  background: rgba(255, 255, 255, 0.18);
+}
+.help-pop {
+  position: absolute;
+  right: 0;
+  top: 34px;
+  width: 400px;
+  background: #fff;
+  color: var(--text);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.28);
+  padding: 14px 16px;
+  z-index: 30;
+  font-size: 13px;
+  display: grid;
+  gap: 8px;
+}
+.help-pop h3 {
+  font-size: 14px;
+  color: var(--navy);
+}
+.help-pop ul {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 2px;
+}

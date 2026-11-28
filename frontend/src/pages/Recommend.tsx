@@ -3,7 +3,7 @@ import { api, query } from '../api'
 import { carbon, GROUPS, num, pct, PRICE_SOURCE, splitSizeSource, won } from '../format'
 import { useAction, useBasis, useGet } from '../hooks'
 import type { Backtest, GroupCode, ItemPlan, Recommendation } from '../types'
-import { Async, Badge, Card, Collapse, Notice, Stat } from '../ui'
+import { Async, Badge, BasisHint, Card, Collapse, Notice, Stat } from '../ui'
 
 interface Form {
   year: string
@@ -63,6 +63,7 @@ export default function Recommend() {
           <p className="muted">
             과거 주문 패턴으로 다음 발주의 품목·사이즈별 수량을 계산합니다. 결과는 저장하지 않고 입력값으로 그때그때 계산합니다.
           </p>
+          <BasisHint />
         </div>
         {exportUrl && (
           <a className="primary no-print" href={exportUrl} download>

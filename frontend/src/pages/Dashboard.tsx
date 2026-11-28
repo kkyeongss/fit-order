@@ -3,7 +3,7 @@ import { useMemo } from 'react'
 import { carbon, GROUP_COLOR, GROUPS, num, pct, pctValue, won } from '../format'
 import { useBasis, useGet } from '../hooks'
 import type { MetricValues, Summary } from '../types'
-import { Async, Card, ChartBox, Notice, Stat } from '../ui'
+import { Async, BasisHint, Card, ChartBox, Notice, Stat } from '../ui'
 
 const MID = '1f3a5f'
 
@@ -34,9 +34,8 @@ export default function Dashboard() {
       <div className="page-head">
         <div>
           <h1>ESG 대시보드</h1>
-          <p className="muted">
-            근무복 주문 현황과 사이즈 미스매치로 인한 과잉 발주 효과 · {basis === 'dedup' ? '중복 제거 기준' : '원자료 기준'}
-          </p>
+          <p className="muted">근무복 주문 현황과 사이즈 미스매치로 인한 과잉 발주 효과</p>
+          <BasisHint />
         </div>
       </div>
       <Async state={summary}>{(s) => <Async state={metrics}>{(m) => <Body summary={s} metrics={m} />}</Async>}</Async>
@@ -82,8 +81,9 @@ function Body({ summary, metrics }: { summary: Summary; metrics: MetricValues[] 
 
       {duplicates.length > 0 && (
         <Notice tone="warn">
-          <strong>완전히 같은 행이 반복된 해가 있습니다.</strong> {duplicates.map((d) => `${d.year}년 ${pct(d.share, 0)}`).join(', ')}. 실제
-          재주문인지 입력 중복인지는 원본으로 확인해야 합니다. 위 '중복 제거'·'원자료' 전환으로 두 경우를 비교할 수 있습니다.
+          <strong>모든 칸이 똑같은 행(완전 중복 행)이 반복된 해가 있습니다.</strong> 해당 해 주문 수량 중 중복 행 비중:{' '}
+          {duplicates.map((d) => `${d.year}년 ${pct(d.share, 0)}`).join(', ')}. 실제 재주문인지 입력 중복인지는 원본으로 확인해야 해서,
+          지우지 않고 표시만 했습니다. 위 '중복 제거'(같은 행은 한 번만)와 '원자료'(모두 셈) 전환으로 두 경우를 비교하세요.
         </Notice>
       )}
 
@@ -91,7 +91,7 @@ function Body({ summary, metrics }: { summary: Summary; metrics: MetricValues[] 
         <Card title="연도별 주문량" subtitle="품목군별 · *는 1년치가 안 되는 해(평균·추천에서 제외)">
           <YearGroupChart summary={summary} />
         </Card>
-        <Card title="중복 행 비중" subtitle="완전히 같은 행(고유 / 중복) · 원본 파일 기준">
+        <Card title="중복 행 비중" subtitle="고유 = 같은 행의 첫 번째, 중복 = 같은 행의 두 번째부터 · 원본 파일 기준">
           <DuplicateChart summary={summary} />
         </Card>
         <Card title="월별 주문 집중도" subtitle={`${avg.fromYear ?? ''}~${avg.toYear ?? ''}년 합계 중 비중 · 4·8월 강조`}>
