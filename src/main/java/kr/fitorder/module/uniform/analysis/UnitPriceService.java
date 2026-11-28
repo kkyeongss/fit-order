@@ -81,8 +81,8 @@ public class UnitPriceService {
 
     private static PriceView marketView(MarketPrice m) {
         return new PriceView(m.group(), m.label(), m.medianPrice(), PriceSource.MARKET, PriceSource.MARKET.label(),
-                "조달청 쇼핑몰 근무복 " + m.sampleCount() + "건 중앙값(" + m.q1Price().toPlainString() + "~"
-                        + m.q3Price().toPlainString() + "원)", m.periodTo(), m.fetchedBy());
+                String.format("조달청 쇼핑몰 근무복 %d건 중앙값(%,.0f~%,.0f원)", m.sampleCount(), m.q1Price(), m.q3Price()),
+                m.periodTo(), m.fetchedBy());
     }
 
     public Map<UniformItemGroup, UnitPrice> current() {

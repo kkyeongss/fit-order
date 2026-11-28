@@ -6,15 +6,20 @@ ESG 항목은 모듈 단위로 추가하며, 첫 모듈은 근무복이다.
 ## 기술 스택
 
 Java 21 · Spring Boot 4.1 (Web MVC, Security, Data JPA) · PostgreSQL 18 · Flyway · Apache POI · JUnit 5 · Testcontainers
+React 19 · TypeScript · Vite 8 · Chart.js 4.6 · Vitest (화면, `frontend/`)
 
 ## 실행
 
 ```bash
 cp .env.example .env        # 공공데이터포털 인증키 입력
 docker compose up -d        # PostgreSQL 18
-./gradlew bootRun           # http://localhost:8080
+./gradlew bootRun           # 서버 http://localhost:8080 (API)
 ./gradlew test              # 통합 테스트는 Docker 필요
 ```
+
+화면 개발(서버가 떠 있는 상태에서): `cd frontend && npm install && npm run dev` → http://localhost:5173 (`/api`는 8080으로 전달).
+`npm test`(단위 테스트), `npm run format`(prettier). 배포용 jar는 `./gradlew bootJar`가 화면을 빌드해 안에 넣는다(Node 22 이상 필요).
+화면은 같은 주소의 `/`에서 열리고(해시 주소 `#/dashboard` 등), 로그인 후 쓸 수 있다.
 
 배포용 이미지(비밀값은 이미지에 넣지 않고 실행할 때 환경변수로):
 
@@ -24,7 +29,7 @@ docker run -d -p 8080:8080 --env-file .env \
   -e FITORDER_DB_URL=jdbc:postgresql://<DB 호스트>:5432/fitorder fit-order
 ```
 
-기본 JVM 옵션은 작은 서버용(`-Xmx384m`, 실행 시 약 280MB). `JAVA_OPTS`로 바꾼다.
+이미지에 화면이 포함되어 있다. 기본 JVM 옵션은 작은 서버용(`-Xmx384m`, 실행 시 약 285MB). `JAVA_OPTS`로 바꾼다.
 
 | 계정 | 역할 |
 | --- | --- |
@@ -98,6 +103,19 @@ docker run -d -p 8080:8080 --env-file .env \
 - 미스매치율 셔츠 16.1%, 점퍼 17.8% (2020~22년 비율로 2023~25년 주문 시)
 - 백테스트 2022~2025: 기준선 총량 오차 17.6%(직전 1년)·21.8%(직전 2년 평균) 재현. 추천은 사이즈 오차 42.0%로 기준선(58.4%·44.4%)보다 작고, 격년 규칙으로 재킷 총량 오차 154% → 43%
 
+## 화면
+
+| 화면 | 권한 | 내용 |
+| --- | --- | --- |
+| 로그인 | 누구나 | 시연 계정 안내, 세션 로그인 |
+| 대시보드 | USER | 요약 카드(연평균 주문량·미스매치율·절감액·탄소), 연도별 주문량, 중복 행 비중, 월별 집중도, 1인당 지급량 |
+| 사이즈 분석 | USER | 품목군별 사이즈 비중, 이전 3년 vs 최근 3년, 모자랄·남을 구간, 연도별 비중 |
+| 발주 추천 | USER | 연도·인원·품목 입력, 품목별 요약, 사이즈별 수량·산정 근거, 정기 발주 시기, 녹색구매 비교, 엑셀, 백테스트 |
+| 데이터 관리 | ADMIN | 적재(CSV·API)·이력, 품질 리포트, 단가·시장가·녹색제품, 사이즈 매핑, 원천 설정·미리보기 |
+| ESG 항목 | ADMIN | 사용 여부, 원천별 적재 방식, 일괄 전환(망분리), 지표 |
+
+상단의 '중복 제거 / 원자료' 전환은 모든 화면에 적용된다. 불완전 연도는 차트에 *로 표시한다.
+
 ## API
 
 `/api/auth/login`(폼 username·password, 성공 시 사용자 JSON) 외에는 로그인 필요, 로그인 전에는 401. `/api/admin/**`과 `PUT /api/esg/**`는 ADMIN 전용. POST·PUT은 `XSRF-TOKEN` 쿠키 값을 `X-XSRF-TOKEN` 헤더로 보낸다.
@@ -146,6 +164,8 @@ kr.fitorder
 │   └── api          REST API
 ├── admin            업로드·원천 관리 API, 감사 로그
 └── config           보안 설정, 로그인 API
+
+frontend/            React 화면 (src/pages: 화면별, api.ts: 서버 통신, hooks.tsx, ui.tsx: 공통 부품)
 ```
 
 | 인터페이스 | 역할 |

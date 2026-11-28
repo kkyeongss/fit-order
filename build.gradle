@@ -48,3 +48,24 @@ tasks.named('test') {
 		environment 'TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE', '/var/run/docker.sock'
 	}
 }
+
+// 화면(React) 빌드: frontend/ → build/frontend → jar의 static/
+// -PskipFrontend: 이미 빌드된 build/frontend를 쓴다(Docker 이미지에서 node 단계가 따로 빌드할 때)
+def frontendDir = file('frontend')
+def frontendOut = layout.buildDirectory.dir('frontend')
+
+tasks.register('frontendBuild', Exec) {
+	description = 'React 화면을 빌드한다 (npm ci + npm run build)'
+	onlyIf { !project.hasProperty('skipFrontend') }
+	workingDir frontendDir
+	inputs.files(fileTree(frontendDir) { include 'src/**', 'public/**', 'index.html', 'package.json', 'package-lock.json', 'vite.config.ts', 'tsconfig.json' })
+	outputs.dir frontendOut
+	commandLine 'sh', '-c', 'npm ci --no-audit --no-fund && npm run build'
+}
+
+tasks.named('bootJar') {
+	dependsOn 'frontendBuild'
+	from(frontendOut) {
+		into 'BOOT-INF/classes/static'
+	}
+}
