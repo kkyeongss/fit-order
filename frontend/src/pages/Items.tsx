@@ -51,16 +51,16 @@ function ItemCard({ item, onChanged }: { item: EsgItem; onChanged: () => void })
       }
     >
       {error && <Notice tone="bad">{error}</Notice>}
-      {!item.enabled && <Notice tone="warn">사용하지 않는 항목이라 적재가 막혀 있습니다.</Notice>}
+      {!item.enabled && <Notice tone="warn">사용하지 않는 항목이라 불러오기가 막혀 있습니다.</Notice>}
 
-      <h3 style={{ margin: '14px 0 8px' }}>데이터 원천과 적재 방식</h3>
+      <h3 style={{ margin: '14px 0 8px' }}>데이터 출처와 불러오는 방식</h3>
       <div className="table-wrap">
         <table>
           <thead>
             <tr>
-              <th>원천</th>
+              <th>출처</th>
               <th>코드</th>
-              <th>적재 방식</th>
+              <th>불러오는 방식</th>
             </tr>
           </thead>
           <tbody>
@@ -81,7 +81,7 @@ function ItemCard({ item, onChanged }: { item: EsgItem; onChanged: () => void })
           className="secondary"
           disabled={busy}
           onClick={() =>
-            change({ loadMethod: 'UPLOAD' }, '모든 원천의 적재 방식을 파일 업로드로 바꿉니다. (API 주소·컬럼 매핑은 그대로 남습니다)')
+            change({ loadMethod: 'UPLOAD' }, '모든 출처의 불러오는 방식을 파일 업로드로 바꿉니다. (API 주소·컬럼 매핑은 그대로 남습니다)')
           }
         >
           모든 원천을 파일 업로드로 (망분리)
@@ -90,14 +90,14 @@ function ItemCard({ item, onChanged }: { item: EsgItem; onChanged: () => void })
           className="secondary"
           disabled={busy}
           onClick={() =>
-            change({ loadMethod: 'API' }, 'API 주소가 있는 원천을 Open API 적재로 바꿉니다. (파일로만 제공되는 원천은 그대로)')
+            change({ loadMethod: 'API' }, 'API 주소가 있는 원천을 Open API 불러오기로 바꿉니다. (파일로만 제공되는 원천은 그대로)')
           }
         >
           API 가능한 원천을 API로
         </button>
       </div>
       <p className="muted" style={{ marginTop: 6 }}>
-        기관 내부망에서 외부 API를 못 부를 때 한 번에 업로드 방식으로 바꾸고, 포털에서 받은 CSV를 올립니다. 원천별 세부 설정은 '데이터 관리
+        기관 내부망에서 외부 API를 못 부를 때 한 번에 업로드 방식으로 바꾸고, 포털에서 받은 CSV를 올립니다. 출처별 세부 설정은 '데이터 관리
         → 원천 설정'에서 바꿉니다.
       </p>
 

@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
-import { api } from './api'
+import { api, type User } from './api'
 import type { Basis } from './types'
 
 // 데이터 읽기 ---------------------------------------------------------------
@@ -73,16 +73,36 @@ export function BasisProvider({ children }: { children: ReactNode }) {
 
 export const useBasis = () => useContext(BasisContext)
 
-// 주소(#/경로) -----------------------------------------------------------------
+// 로그인한 사용자 ------------------------------------------------------------------
 
-export function useHashRoute(fallback: string): [string, (to: string) => void] {
+const UserContext = createContext<User | null>(null)
+
+export const UserProvider = UserContext.Provider
+
+/** 로그인한 사용자(역할·시연 모드 여부). 로그인 전에는 화면이 그려지지 않으므로 항상 있다. */
+export function useUser(): User {
+  const user = useContext(UserContext)
+  if (!user) throw new Error('로그인 정보가 없습니다')
+  return user
+}
+
+// 주소(#/경로?값=...) -----------------------------------------------------------------
+
+export interface HashRoute {
+  /** 경로(예: recommend). 쿼리는 뺀다 */
+  path: string
+  query: URLSearchParams
+}
+
+export function useHashRoute(fallback: string): HashRoute {
   const read = () => window.location.hash.replace(/^#\/?/, '') || fallback
-  const [route, setRoute] = useState(read)
+  const [raw, setRaw] = useState(read)
   useEffect(() => {
-    const on = () => setRoute(read())
+    const on = () => setRaw(read())
     window.addEventListener('hashchange', on)
     return () => window.removeEventListener('hashchange', on)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-  return [route, (to) => (window.location.hash = `/${to}`)]
+  const [path, queryString = ''] = raw.split('?')
+  return { path, query: new URLSearchParams(queryString) }
 }

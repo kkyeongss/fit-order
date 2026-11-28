@@ -598,6 +598,9 @@ class AnalysisIntegrationTest {
                 .content("[]")).andExpect(status().isForbidden());
         mvc.perform(post("/api/uniform/plans").with(manager).with(csrf()).contentType(MediaType.APPLICATION_JSON)
                 .content("{}")).andExpect(status().isForbidden());
+        // 추천 계산은 POST지만 저장하지 않는 조회라 부서장도 쓴다
+        mvc.perform(post("/api/uniform/recommendation").with(manager).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                .content("{}")).andExpect(status().isOk());
         // 담당자: 입력은 되고 변경 기록·관리자 화면은 안 된다
         mvc.perform(get("/api/audit").with(worker)).andExpect(status().isForbidden());
         mvc.perform(get("/api/admin/users").with(worker)).andExpect(status().isForbidden());

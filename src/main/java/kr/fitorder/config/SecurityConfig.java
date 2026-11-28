@@ -52,6 +52,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.PUT, "/api/esg/**").hasRole("ADMIN")
                         .requestMatchers("/api/audit/**").hasAnyRole("ADMIN", "MANAGER")
                         .requestMatchers(HttpMethod.GET, "/api/**").hasAnyRole("USER", "MANAGER", "ADMIN")
+                        // 추천 계산은 POST지만 아무것도 저장하지 않는 조회라 부서장도 쓴다
+                        .requestMatchers(HttpMethod.POST, "/api/uniform/recommendation").hasAnyRole("USER", "MANAGER", "ADMIN")
                         .requestMatchers("/api/**").hasAnyRole("USER", "ADMIN")
                         .anyRequest().permitAll())
                 .formLogin(form -> form

@@ -4,8 +4,9 @@ import { useAction } from '../hooks'
 import { Notice } from '../ui'
 
 const DEMO = [
-  { username: 'user', password: 'user1234', label: '담당자(USER)', note: '대시보드·사이즈 분석·발주 추천' },
-  { username: 'admin', password: 'admin1234', label: '관리자(ADMIN)', note: '위 화면 + 데이터 관리·ESG 항목' },
+  { username: 'user', password: 'user1234', label: '담당자(USER)', note: '조회 + 단가·재고·발주안 입력' },
+  { username: 'manager', password: 'manager1234', label: '부서장(MANAGER)', note: '조회 전용 + 변경 기록 (입력은 못 함)' },
+  { username: 'admin', password: 'admin1234', label: '관리자(ADMIN)', note: '담당자 화면 + 데이터 관리·계정·ESG 항목' },
 ]
 
 export default function Login({ onLogin }: { onLogin: (u: User) => void }) {

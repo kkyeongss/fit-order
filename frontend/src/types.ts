@@ -13,6 +13,12 @@ export interface YearSummary {
   duplicateQuantity: number
   orderDays: number
   byGroup: Record<string, number>
+  /** 그해 주문 수량 × 현재 단가로 본 추정 구매 금액(실제 지출액 아님) */
+  amount: number
+}
+export interface DataAsOf {
+  lastOrderDate: string | null
+  loads: { source: string; name: string; baseYear: number | null; fileName: string | null; loadedAt: string }[]
 }
 export interface Summary {
   basis: string
@@ -21,6 +27,7 @@ export interface Summary {
   years: YearSummary[]
   months: { month: number; quantity: number; share: number }[]
   perCapita: { year: number; quantity: number; headcount: number; baseDate: string; perCapita: number }[]
+  dataAsOf: DataAsOf
 }
 
 export interface MetricValues {
@@ -66,7 +73,14 @@ export interface SizeLine {
   ratio: number
   base: number
   safety: number
+  /** 필요 수량(안전재고 포함) */
   quantity: number
+  stock: number
+  /** 재고를 뺀 발주 수량 */
+  orderQuantity: number
+  /** 정기 발주 회차별 발주 수량(순번은 totals.rounds와 같다) */
+  rounds: number[]
+  unknownCode: boolean
 }
 export interface Savings {
   group: GroupCode
@@ -95,6 +109,13 @@ export interface ItemPlan {
   priceSource: PriceSource
   amount: number
   savings: Savings | null
+  stockTotal: number
+  orderQuantity: number
+  orderAmount: number
+  rounds: { index: number; quantity: number; amount: number }[]
+  warnings: string[]
+  history: { year: number; quantity: number }[]
+  totalOverride: number | null
 }
 export interface MarketPrice {
   group: GroupCode
@@ -133,11 +154,20 @@ export interface Recommendation {
     savedAmount: number
     carbonKg: number
     priceEstimated: boolean
+    stockTotal: number
+    orderQuantity: number
+    orderAmount: number
+    range: { low: number; high: number; errorRate: number }
+    rounds: { month: number; share: number; quantity: number; amount: number }[]
   }
   orderMonths: { month: number; quantity: number; share: number }[]
   improvementRate: number
   marketPrices: MarketPrice[]
   greenProducts: GreenSummary[]
+  warnings: string[]
+  yearRange: { from: number; to: number }
+  otherBasis: { basis: string; quantity: number; orderQuantity: number; orderAmount: number } | null
+  lastOrderDate: string | null
 }
 
 export interface BacktestAverage {
@@ -264,4 +294,96 @@ export interface EsgItem {
   loadMethod: LoadMethod
   sources: { code: string; name: string; method: LoadMethod; hasUrl: boolean }[]
   metrics: { code: string; name: string; unit: string }[]
+}
+
+export interface StockRow {
+  group: GroupCode
+  source: string
+  rawSize: string
+  quantity: number
+  updatedBy: string
+  updatedAt: string
+}
+
+export interface GroupSaving {
+  group: GroupCode
+  label: string
+  mismatchRate: number
+  annualQuantity: number
+  savedQuantity: number
+  savedAmount: number
+  carbonKg: number
+  unitPrice: number
+  priceSource: PriceSource
+  carbonFactor: number
+  carbonSource: string
+}
+export interface SavingsReport {
+  comparison: { previous: Period; recent: Period } | null
+  improvementRate: number
+  scenarios: { rate: number; savedQuantity: number; savedAmount: number; carbonKg: number }[]
+  groups: GroupSaving[]
+  savedAmount: number
+  savedQuantity: number
+  carbonKg: number
+  estimatedPriceShare: number
+  estimatedGroups: string[]
+}
+
+export interface PlanSummary {
+  id: number
+  planYear: number
+  basis: 'DEDUP' | 'RAW'
+  headcount: number | null
+  note: string | null
+  savedBy: string
+  savedAt: string
+  quantity: number
+  orderQuantity: number
+  orderAmount: number
+  itemCount: number
+}
+export interface PlanCompare {
+  plan: PlanSummary
+  hasActual: boolean
+  yearComplete: boolean
+  lastOrderDate: string | null
+  plannedQuantity: number
+  actualQuantity: number
+  difference: number
+  differencePercent: number | null
+  sizeMismatchRate: number
+  items: {
+    group: string
+    label: string
+    planned: number
+    actual: number
+    difference: number
+    differencePercent: number | null
+    sizeMismatchRate: number
+    sizes: { size: string; planned: number; actual: number; difference: number }[]
+  }[]
+  message: string | null
+}
+
+export interface AuditRow {
+  id: number
+  username: string
+  action: string
+  target: string
+  detail: string | null
+  createdAt: string
+}
+export interface UserView {
+  username: string
+  role: 'USER' | 'MANAGER' | 'ADMIN'
+  roleLabel: string
+  enabled: boolean
+  createdAt: string
+}
+export interface CarbonFactor {
+  group: GroupCode
+  label: string
+  kgCo2e: number
+  source: string
 }

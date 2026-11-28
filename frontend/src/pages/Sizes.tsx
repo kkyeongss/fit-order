@@ -21,7 +21,7 @@ export default function Sizes() {
       </div>
       <Async state={state}>
         {(all) => {
-          if (all.length === 0) return <Notice tone="warn">분석할 주문 데이터가 없습니다. 데이터 관리에서 근무복 CSV를 적재하세요.</Notice>
+          if (all.length === 0) return <Notice tone="warn">분석할 주문 데이터가 없습니다. 데이터 관리에서 근무복 CSV를 불러오세요.</Notice>
           const current = all.find((a) => a.group === group) ?? all[0]
           return (
             <>
@@ -51,7 +51,7 @@ function Detail({ analysis }: { analysis: SizeAnalysis }) {
       {sp.source && <p className="muted">사이즈 코드는 모두 '{sp.source}' 기준입니다.</p>}
       <div className="grid cols-3">
         <Stat
-          label="사이즈 미스매치율"
+          label="사이즈 불일치율"
           value={analysis.mismatchRate === null ? '-' : pct(analysis.mismatchRate)}
           note={
             c ? `${c.previous.from}~${c.previous.to}년 비율로 ${c.recent.from}~${c.recent.to}년을 주문했을 때` : '비교할 기간이 부족합니다'

@@ -66,6 +66,7 @@ export const api = {
   get: <T>(path: string) => request<T>(path),
   post: <T>(path: string, body?: unknown) => request<T>(path, { method: 'POST', ...(body === undefined ? {} : json(body)) }),
   put: <T>(path: string, body: unknown) => request<T>(path, { method: 'PUT', ...json(body) }),
+  delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
   upload: <T>(path: string, form: FormData) => request<T>(path, { method: 'POST', body: form }),
   /** 로그인 시도 자체의 401은 '세션 만료'가 아니므로 로그인 화면으로 돌리지 않는다. */
   login: (username: string, password: string) =>
@@ -78,4 +79,10 @@ export interface User {
   username: string
   roles: string[]
   admin: boolean
+  /** 부서장(읽기 전용) */
+  manager: boolean
+  /** 단가·재고·발주안을 입력할 수 있는 역할(담당자·관리자) */
+  canEdit: boolean
+  /** 공개 시연 모드: 관리자의 데이터·설정·계정 변경이 막혀 있다 */
+  demo: boolean
 }

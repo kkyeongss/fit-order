@@ -1,8 +1,10 @@
 import { useState, type FormEvent } from 'react'
 import { api } from '../api'
-import { dateTime, num, PRICE_SOURCE, won } from '../format'
-import { useAction, useGet } from '../hooks'
+import { dateTime, num, PRICE_SOURCE, ROLE_LABEL, won } from '../format'
+import { useAction, useGet, useUser } from '../hooks'
 import type {
+  CarbonFactor,
+  UserView,
   GreenFetchResult,
   GreenProductView,
   LoadHistory,
@@ -16,31 +18,39 @@ import type {
 } from '../types'
 import { Async, Badge, Card, Notice, Tabs } from '../ui'
 
-type Tab = 'load' | 'quality' | 'prices' | 'sizes' | 'sources'
+type Tab = 'load' | 'quality' | 'prices' | 'carbon' | 'sizes' | 'sources' | 'users'
 const TABS: { id: Tab; label: string }[] = [
-  { id: 'load', label: '적재' },
-  { id: 'quality', label: '품질 리포트' },
+  { id: 'load', label: '데이터 불러오기' },
+  { id: 'quality', label: '데이터 점검' },
   { id: 'prices', label: '단가·시장가·녹색제품' },
-  { id: 'sizes', label: '사이즈 매핑' },
-  { id: 'sources', label: '원천 설정' },
+  { id: 'carbon', label: '탄소계수' },
+  { id: 'sizes', label: '사이즈 코드 연결' },
+  { id: 'sources', label: '데이터 출처 설정' },
+  { id: 'users', label: '계정' },
 ]
 
 export default function Admin() {
   const [tab, setTab] = useState<Tab>('load')
+  const user = useUser()
   return (
     <>
       <div className="page-head">
         <div>
           <h1>데이터 관리</h1>
-          <p className="muted">데이터 적재, 품질 점검, 단가·사이즈 매핑, 원천 설정. 바꾸면 모든 지표가 자동으로 다시 계산됩니다.</p>
+          <p className="muted">
+            데이터 불러오기, 점검, 단가·사이즈 매핑, 출처 설정, 탄소계수, 계정. 바꾸면 모든 지표가 자동으로 다시 계산됩니다.
+          </p>
         </div>
       </div>
+      {user.demo && <Notice tone="warn">공개 시연 서버라 이 화면의 저장·불러오기는 막혀 있습니다. 조회만 할 수 있습니다.</Notice>}
       <Tabs tabs={TABS} value={tab} onChange={setTab} />
       {tab === 'load' && <LoadTab />}
       {tab === 'quality' && <QualityTab />}
       {tab === 'prices' && <PricesTab />}
+      {tab === 'carbon' && <CarbonTab />}
       {tab === 'sizes' && <SizesTab />}
       {tab === 'sources' && <SourcesTab />}
+      {tab === 'users' && <UsersTab />}
     </>
   )
 }
@@ -575,7 +585,7 @@ function SizesTab() {
         {(rows) => (
           <>
             <Notice tone="info">
-              같은 표준 사이즈를 입력한 코드는 하나로 합산됩니다. 비우면 매핑을 지웁니다. 저장하면 미스매치율·추천이 다시 계산됩니다.
+              같은 표준 사이즈를 입력한 코드는 하나로 합산됩니다. 비우면 매핑을 지웁니다. 저장하면 불일치율·추천이 다시 계산됩니다.
             </Notice>
             <div className="table-wrap" style={{ marginTop: 12 }}>
               <table>
@@ -821,5 +831,223 @@ function SourceCard({ source, onSaved }: { source: SourceView; onSaved: () => vo
         </div>
       )}
     </Card>
+  )
+}
+
+// 탄소계수 -----------------------------------------------------------------------
+
+function CarbonTab() {
+  const factors = useGet<CarbonFactor[]>('/api/admin/carbon-factors')
+  const { busy, error, run } = useAction()
+  const [edits, setEdits] = useState<Record<string, { kg?: string; source?: string }>>({})
+  const [saved, setSaved] = useState(false)
+
+  const save = () =>
+    run(async () => {
+      const changes = (factors.data ?? [])
+        .filter((f) => edits[f.group])
+        .map((f) => ({
+          group: f.group,
+          kgCo2e: Number(edits[f.group].kg ?? f.kgCo2e),
+          source: edits[f.group].source ?? f.source,
+        }))
+      await api.put('/api/admin/carbon-factors', changes)
+      setEdits({})
+      setSaved(true)
+      factors.reload()
+    })
+
+  return (
+    <Card
+      title="품목별 탄소계수"
+      subtitle="벌당 kgCO₂e. 탄소 감축량 = 절감 수량 × 계수. 해외 일반 값이라 추정치이므로, 기관이 쓰는 값이 있으면 출처와 함께 바꿔 넣으세요."
+    >
+      <Async state={factors}>
+        {(list) => (
+          <>
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>품목</th>
+                    <th className="num">kgCO₂e/벌</th>
+                    <th>출처</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {list.map((f) => (
+                    <tr key={f.group}>
+                      <td>{f.label}</td>
+                      <td className="num">
+                        <input
+                          type="number"
+                          min={0}
+                          step={0.1}
+                          style={{ width: 90 }}
+                          aria-label={`${f.label} 탄소계수`}
+                          value={edits[f.group]?.kg ?? String(f.kgCo2e)}
+                          onChange={(e) => setEdits({ ...edits, [f.group]: { ...edits[f.group], kg: e.target.value } })}
+                        />
+                      </td>
+                      <td>
+                        <input
+                          type="text"
+                          style={{ width: '100%', minWidth: 260 }}
+                          aria-label={`${f.label} 출처`}
+                          value={edits[f.group]?.source ?? f.source}
+                          onChange={(e) => setEdits({ ...edits, [f.group]: { ...edits[f.group], source: e.target.value } })}
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="form-row" style={{ marginTop: 10 }}>
+              <button className="primary" disabled={busy || Object.keys(edits).length === 0} onClick={save}>
+                {busy ? '저장하는 중…' : '저장'}
+              </button>
+              {saved && <Badge tone="ok">저장했습니다. 탄소 감축량이 다시 계산됩니다.</Badge>}
+            </div>
+            {error && <Notice tone="bad">{error}</Notice>}
+          </>
+        )}
+      </Async>
+    </Card>
+  )
+}
+
+// 계정 ---------------------------------------------------------------------------
+
+function UsersTab() {
+  const users = useGet<UserView[]>('/api/admin/users')
+  const user = useUser()
+  const { busy, error, run } = useAction()
+  const [form, setForm] = useState({ username: '', password: '', role: 'USER' })
+  const [resetDone, setResetDone] = useState<string | null>(null)
+
+  const create = (e: FormEvent) => {
+    e.preventDefault()
+    run(async () => {
+      await api.post('/api/admin/users', form)
+      setForm({ username: '', password: '', role: 'USER' })
+      users.reload()
+    })
+  }
+  const update = (username: string, body: object) =>
+    run(async () => {
+      await api.put(`/api/admin/users/${encodeURIComponent(username)}`, body)
+      users.reload()
+    })
+  const resetPassword = (username: string) => {
+    const password = window.prompt(`${username}의 새 비밀번호 (8자 이상)`)
+    if (password) update(username, { password })
+  }
+  const resetDemo = () => {
+    if (!window.confirm('입력된 단가·재고·발주안을 지우고 처음 상태로 되돌립니다. 계속할까요?')) return
+    run(async () => {
+      const r = await api.post<{ prices: number; stock: number; plans: number }>('/api/admin/demo/reset', {})
+      setResetDone(`단가 ${r.prices}건, 재고 ${r.stock}건, 발주안 ${r.plans}건을 지웠습니다.`)
+    })
+  }
+
+  return (
+    <>
+      <Card
+        title="계정"
+        subtitle="담당자: 조회·입력 / 부서장: 조회 전용 + 변경 기록 / 관리자: 전체. 계정은 지우지 않고 사용 중지로 관리합니다."
+      >
+        <Async state={users}>
+          {(list) => (
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>아이디</th>
+                    <th>역할</th>
+                    <th>상태</th>
+                    <th>만든 날</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {list.map((u) => (
+                    <tr key={u.username}>
+                      <td>{u.username}</td>
+                      <td>
+                        <select
+                          aria-label={`${u.username} 역할`}
+                          value={u.role}
+                          disabled={busy || u.username === user.username}
+                          onChange={(e) => update(u.username, { role: e.target.value })}
+                        >
+                          {Object.entries(ROLE_LABEL).map(([k, v]) => (
+                            <option key={k} value={k}>
+                              {v}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td>{u.enabled ? <Badge tone="ok">사용 중</Badge> : <Badge tone="bad">중지</Badge>}</td>
+                      <td className="nowrap">{dateTime(u.createdAt)}</td>
+                      <td className="nowrap">
+                        <button className="link" disabled={busy} onClick={() => resetPassword(u.username)}>
+                          비밀번호 재설정
+                        </button>{' '}
+                        {u.username !== user.username && (
+                          <button className="link" disabled={busy} onClick={() => update(u.username, { enabled: !u.enabled })}>
+                            {u.enabled ? '사용 중지' : '사용 재개'}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Async>
+        <form className="form-row" style={{ marginTop: 14 }} onSubmit={create}>
+          <label className="field">
+            새 아이디
+            <input value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} required minLength={3} />
+          </label>
+          <label className="field">
+            비밀번호 (8자 이상)
+            <input
+              type="password"
+              value={form.password}
+              onChange={(e) => setForm({ ...form, password: e.target.value })}
+              required
+              minLength={8}
+              autoComplete="new-password"
+            />
+          </label>
+          <label className="field">
+            역할
+            <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
+              {Object.entries(ROLE_LABEL).map(([k, v]) => (
+                <option key={k} value={k}>
+                  {v}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button className="primary" disabled={busy}>
+            계정 추가
+          </button>
+        </form>
+        {error && <Notice tone="bad">{error}</Notice>}
+      </Card>
+      <Card
+        title="시연 데이터 초기화"
+        subtitle="입력된 단가·재고·발주안을 지우고 처음 상태로 되돌립니다. 시연 서버는 매일 새벽 4시에 자동으로 실행합니다."
+      >
+        <button className="secondary" disabled={busy} onClick={resetDemo}>
+          지금 초기화
+        </button>
+        {resetDone && <Badge tone="ok">{resetDone}</Badge>}
+      </Card>
+    </>
   )
 }

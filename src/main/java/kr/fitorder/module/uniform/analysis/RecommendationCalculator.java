@@ -51,7 +51,8 @@ public class RecommendationCalculator {
     public record YearQuantity(int year, int quantity) {
     }
 
-    public record RoundQty(int month, int quantity, BigDecimal amount) {
+    /** index는 정기 발주 회차 순번(0부터). 실제 월은 Totals.rounds의 같은 순번 값이다. */
+    public record RoundQty(int index, int quantity, BigDecimal amount) {
     }
 
     /**

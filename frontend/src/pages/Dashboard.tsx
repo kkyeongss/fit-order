@@ -1,8 +1,8 @@
 import { Chart, type ChartConfiguration } from 'chart.js/auto'
-import { useMemo } from 'react'
-import { carbon, GROUP_COLOR, GROUPS, num, pct, pctValue, won } from '../format'
+import { useMemo, useState } from 'react'
+import { carbon, dateTime, GROUP_COLOR, GROUPS, num, pct, pctValue, PRICE_SOURCE, won } from '../format'
 import { useBasis, useGet } from '../hooks'
-import type { MetricValues, Summary } from '../types'
+import type { MetricValues, SavingsReport, Summary } from '../types'
 import { Async, BasisHint, Card, ChartBox, Notice, Stat } from '../ui'
 
 const MID = '1f3a5f'
@@ -28,22 +28,28 @@ export default function Dashboard() {
   const { basis } = useBasis()
   const summary = useGet<Summary>(`/api/uniform/summary?basis=${basis}`)
   const metrics = useGet<MetricValues[]>(`/api/esg/items/uniform/metrics?basis=${basis}`)
+  const savings = useGet<SavingsReport>(`/api/uniform/savings?basis=${basis}`)
 
   return (
     <>
       <div className="page-head">
         <div>
           <h1>ESG 대시보드</h1>
-          <p className="muted">근무복 주문 현황과 사이즈 미스매치로 인한 과잉 발주 효과</p>
+          <p className="muted">근무복 주문 현황과 사이즈 불일치로 인한 과잉 발주 효과</p>
           <BasisHint />
         </div>
       </div>
-      <Async state={summary}>{(s) => <Async state={metrics}>{(m) => <Body summary={s} metrics={m} />}</Async>}</Async>
+      <Guide />
+      <Async state={summary}>
+        {(s) => (
+          <Async state={metrics}>{(m) => <Async state={savings}>{(sv) => <Body summary={s} metrics={m} savings={sv} />}</Async>}</Async>
+        )}
+      </Async>
     </>
   )
 }
 
-function Body({ summary, metrics }: { summary: Summary; metrics: MetricValues[] }) {
+function Body({ summary, metrics, savings }: { summary: Summary; metrics: MetricValues[]; savings: SavingsReport }) {
   const avg = summary.annualAverage
   const mismatch = latestPeriodValue(metrics, 'uniform.size-mismatch-rate')
   const savedAmount = latestPeriodValue(metrics, 'uniform.saved-amount')
@@ -66,7 +72,7 @@ function Body({ summary, metrics }: { summary: Summary; metrics: MetricValues[] 
           note={avg.fromYear ? `${avg.fromYear}~${avg.toYear}년 평균 · 연 ${num(avg.orderDays, 0)}일 주문` : undefined}
         />
         <Stat
-          label="사이즈 미스매치율"
+          label="사이즈 불일치율"
           value={mismatch ? pctValue(mismatch.value) : '-'}
           note={mismatch ? `${mismatch.period}년, 이전 3년 사이즈 비율로 주문했을 때 어긋나는 몫` : '비교할 기간이 부족합니다'}
         />
@@ -74,10 +80,21 @@ function Body({ summary, metrics }: { summary: Summary; metrics: MetricValues[] 
           label="예상 절감액 (연)"
           tone="good"
           value={savedAmount ? won(savedAmount.value) : '-'}
-          note={savedQty ? `절감 ${num(savedQty.value)}벌/년 · 개선률 50% 가정` : undefined}
+          note={
+            savedQty
+              ? `절감 ${num(savedQty.value)}벌/년 · 개선률 ${pct(savings.improvementRate, 0)} 가정 · ${pct(savings.estimatedPriceShare, 0)}는 추정 단가 기준`
+              : undefined
+          }
         />
         <Stat label="탄소 감축량 (연)" tone="good" value={carbonKg ? carbon(carbonKg.value) : '-'} note="절감 수량 × 품목별 탄소계수" />
       </div>
+
+      <Notice tone="info">
+        <strong>데이터 기준일:</strong> 마지막 주문일 {summary.dataAsOf.lastOrderDate ?? '-'}
+        {summary.dataAsOf.loads.length > 0 &&
+          ` · ${summary.dataAsOf.loads.map((l) => `${l.name} ${l.baseYear ?? ''}년(${dateTime(l.loadedAt)} 불러옴)`).join(', ')}`}
+        . 이후 주문은 반영되지 않았습니다.
+      </Notice>
 
       {duplicates.length > 0 && (
         <Notice tone="warn">
@@ -94,6 +111,9 @@ function Body({ summary, metrics }: { summary: Summary; metrics: MetricValues[] 
         <Card title="중복 행 비중" subtitle="고유 = 같은 행의 첫 번째, 중복 = 같은 행의 두 번째부터 · 원본 파일 기준">
           <DuplicateChart summary={summary} />
         </Card>
+        <Card title="연도별 추정 구매 금액" subtitle="그해 주문 수량 × 현재 단가(실제 지출액 아님) · *는 1년치가 안 되는 해">
+          <AmountChart summary={summary} />
+        </Card>
         <Card title="월별 주문 집중도" subtitle={`${avg.fromYear ?? ''}~${avg.toYear ?? ''}년 합계 중 비중 · 4·8월 강조`}>
           <MonthChart summary={summary} />
         </Card>
@@ -101,6 +121,8 @@ function Body({ summary, metrics }: { summary: Summary; metrics: MetricValues[] 
           <PerCapitaChart summary={summary} />
         </Card>
       </div>
+
+      <SavingsBasis savings={savings} />
 
       <Card title="발주 패턴" subtitle="두 데이터를 합친 주문일 기준">
         <div className="grid cols-3">
@@ -253,4 +275,114 @@ function PerCapitaChart({ summary }: { summary: Summary }) {
   }, [summary])
   if (summary.perCapita.length === 0) return <p className="muted">정원 데이터가 없습니다. 데이터 관리에서 정원현황을 적재하세요.</p>
   return <ChartBox config={config} label="연도별 1인당 지급량 선 차트" />
+}
+
+/** 처음 쓰는 사람을 위한 사용 순서. 닫으면 이 브라우저에서는 다시 보이지 않는다. */
+function Guide() {
+  const [hidden, setHidden] = useState(() => localStorage.getItem('guide-closed') === '1')
+  if (hidden) return null
+  return (
+    <Notice tone="info">
+      <strong>처음이신가요?</strong> ① 이 화면에서 주문 현황을 본다 → ② '사이즈 분석'에서 사이즈 쏠림을 확인한다 → ③ '발주 추천'에서
+      연도·인원을 정하고 재고를 입력한다 → ④ 엑셀 발주서나 결재용 보고서로 내려받는다. 데이터에 문제가 있으면 '데이터 개선 요청'에 정리해
+      두었습니다.{' '}
+      <button
+        className="link"
+        onClick={() => {
+          localStorage.setItem('guide-closed', '1')
+          setHidden(true)
+        }}
+      >
+        다시 보지 않기
+      </button>
+    </Notice>
+  )
+}
+
+/** 절감 효과가 어떤 가정 위에 있는지: 개선률 범위, 추정 단가 비중, 품목별 단가·탄소계수 출처 */
+function SavingsBasis({ savings }: { savings: SavingsReport }) {
+  return (
+    <Card title="절감 효과 산출 근거" subtitle="절감 = 연 주문량 × 사이즈 불일치율 × 개선률. 개선률은 가정이라 범위로 함께 봅니다.">
+      <div className="grid cols-3">
+        {savings.scenarios.map((x) => (
+          <Stat
+            key={x.rate}
+            label={`개선률 ${pct(x.rate, 0)}${x.rate === savings.improvementRate ? ' (기본)' : ''}`}
+            value={won(x.savedAmount)}
+            note={`${num(x.savedQuantity)}벌 · 탄소 ${carbon(x.carbonKg)}`}
+          />
+        ))}
+      </div>
+      {savings.estimatedPriceShare > 0 && (
+        <p style={{ margin: '10px 0' }}>
+          <Notice tone="warn">
+            절감액의 <strong>{pct(savings.estimatedPriceShare, 0)}</strong>는 추정 단가({savings.estimatedGroups.join('·')})에 기대고
+            있습니다. 실제 단가를 '발주 추천'에서 입력하면 바로 바뀝니다.
+          </Notice>
+        </p>
+      )}
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>품목</th>
+              <th className="num">불일치율</th>
+              <th className="num">연 주문량</th>
+              <th className="num">절감 수량</th>
+              <th className="num">단가</th>
+              <th className="num">절감액</th>
+              <th className="num">탄소계수</th>
+            </tr>
+          </thead>
+          <tbody>
+            {savings.groups.map((g) => (
+              <tr key={g.group}>
+                <td>{g.label}</td>
+                <td className="num">{pct(g.mismatchRate)}</td>
+                <td className="num">{num(g.annualQuantity)}</td>
+                <td className="num">{num(g.savedQuantity, 1)}</td>
+                <td className="num">
+                  {won(g.unitPrice)} <span className="muted">{PRICE_SOURCE[g.priceSource].label}</span>
+                </td>
+                <td className="num">{won(g.savedAmount)}</td>
+                <td className="num" title={g.carbonSource}>
+                  {num(g.carbonFactor, 1)} kgCO₂e/벌
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="muted">
+        탄소계수는 해외 일반 값 기반의 추정치입니다(출처는 칸에 마우스를 올리면 보입니다). 보고서에 쓸 때는 추정치로 표시하세요.
+      </p>
+    </Card>
+  )
+}
+
+function AmountChart({ summary }: { summary: Summary }) {
+  const config = useMemo<ChartConfiguration>(() => {
+    const years = summary.years
+    return {
+      type: 'bar',
+      data: {
+        labels: years.map((y) => `${y.year}${y.complete ? '' : '*'}`),
+        datasets: [
+          {
+            label: '추정 구매 금액',
+            data: years.map((y) => Math.round(y.amount / 10000)),
+            backgroundColor: years.map((y) => alpha('#1f3a5f', y.complete)),
+          },
+        ],
+      },
+      options: {
+        scales: { y: { beginAtZero: true, title: { display: true, text: '만원' } } },
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: (i) => `${num(i.parsed.y)}만원 (${num(years[i.dataIndex].quantity)}벌)` } },
+        },
+      },
+    }
+  }, [summary])
+  return <ChartBox config={config} label="연도별 추정 구매 금액 막대 차트" />
 }

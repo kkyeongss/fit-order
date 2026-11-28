@@ -72,3 +72,53 @@ export function metricValue(
   const found = m.values.find((v) => (period === null || v.period === period) && v.dimension === dimension)
   return found ? found.value : null
 }
+
+/** 변경 기록(audit_log)의 동작 코드를 한글로. 모르는 코드는 그대로 보여준다. */
+export const AUDIT_ACTION: Record<string, string> = {
+  CSV_UPLOAD: '파일 불러오기',
+  API_LOAD: 'Open API 불러오기',
+  PRICE_UPDATE: '단가 입력',
+  PRICE_CLEAR: '입력 단가 되돌림',
+  STOCK_UPDATE: '재고 입력',
+  PLAN_SAVE: '발주안 저장',
+  PLAN_DELETE: '발주안 삭제',
+  SIZE_MAPPING: '사이즈 코드 연결',
+  SOURCE_UPDATE: '데이터 출처 설정',
+  ESG_ITEM_UPDATE: 'ESG 항목 설정',
+  CARBON_FACTOR_UPDATE: '탄소계수 변경',
+  USER_CREATE: '계정 추가',
+  USER_ROLE: '계정 역할 변경',
+  USER_ENABLE: '계정 사용 재개',
+  USER_DISABLE: '계정 사용 중지',
+  USER_PASSWORD_RESET: '비밀번호 재설정(관리자)',
+  PASSWORD_CHANGE: '비밀번호 변경',
+  DEMO_RESET: '시연 데이터 초기화',
+  MARKET_PRICE_API: '조달청 시장가 가져오기',
+  MARKET_PRICE_UPLOAD: '조달청 시장가 파일 올리기',
+  GREEN_PRODUCT_API: '녹색제품 가져오기',
+  GREEN_PRODUCT_UPLOAD: '녹색제품 파일 올리기',
+}
+
+export const auditLabel = (action: string) => AUDIT_ACTION[action] ?? action
+
+export const ROLE_LABEL: Record<string, string> = { USER: '담당자', MANAGER: '부서장', ADMIN: '관리자' }
+
+/** 클립보드에 복사한다. 실패하면 false. */
+export async function copyText(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text)
+    return true
+  } catch {
+    const area = document.createElement('textarea')
+    area.value = text
+    document.body.appendChild(area)
+    area.select()
+    const ok = document.execCommand('copy')
+    area.remove()
+    return ok
+  }
+}
+
+/** 변화율(-0.12 → -12%)에 부호를 붙인다. */
+export const signedPct = (ratio: number | null | undefined, digits = 0) =>
+  ratio === null || ratio === undefined ? '-' : `${ratio > 0 ? '+' : ''}${num(ratio * 100, digits)}%`
