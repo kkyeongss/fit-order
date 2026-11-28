@@ -17,12 +17,14 @@ import java.util.Map;
 import kr.fitorder.module.uniform.analysis.RecommendationCalculator.ItemPlan;
 import kr.fitorder.module.uniform.analysis.RecommendationCalculator.SizeKey;
 import kr.fitorder.module.uniform.analysis.RecommendationCalculator.SizeLine;
+import kr.fitorder.module.uniform.domain.UniformItemGroup;
 import org.junit.jupiter.api.Test;
 
 class RecommendationCalculatorTest {
 
     private final RecommendationCalculator calculator =
-            new RecommendationCalculator(new UniformAnalysis(AnalysisFixtures.properties()));
+            new RecommendationCalculator(new UniformAnalysis(AnalysisFixtures.properties()),
+                    kr.fitorder.module.uniform.UniformTestFixtures.properties());
 
     @Test
     void 총량은_직전_2년_평균이고_불완전_연도는_뺀다() {
@@ -105,6 +107,95 @@ class RecommendationCalculatorTest {
 
         assertThat(RecommendationCalculator.allocate(10, ratios).values().stream().mapToInt(Integer::intValue).sum())
                 .isEqualTo(10);
+    }
+
+    @Test
+    void 재고를_빼면_발주_수량이_줄고_회차별_수량의_합이_발주_수량과_같다() {
+        List<OrderLine> lines = new ArrayList<>(bounds(2020, 2026));
+        lines.add(line("2025-04-01", SHIRT, "95", 60));
+        lines.add(line("2025-04-01", SHIRT, "100", 40));
+        UniformDataset data = dataset(lines, Map.of(2025, 1000));
+        var stock = Map.of(StockService.StockKey.of(SHIRT, "A", "95"), 20);
+
+        ItemPlan plan = calculator.plan(data, SHIRT, 2027, 1000, null, stock, List.of(0.6, 0.4));
+
+        SizeLine s95 = plan.sizes().stream().filter(z -> "95".equals(z.rawSize())).findFirst().orElseThrow();
+        assertThat(s95.stock()).isEqualTo(20);
+        assertThat(s95.orderQuantity()).isEqualTo(s95.quantity() - 20);
+        assertThat(plan.stockTotal()).isEqualTo(20);
+        assertThat(plan.orderQuantity()).isEqualTo(plan.quantity() - 20);
+        for (SizeLine z : plan.sizes()) {
+            assertThat(z.rounds()).hasSize(2);
+            assertThat(z.rounds().stream().mapToInt(Integer::intValue).sum()).isEqualTo(z.orderQuantity());
+        }
+        assertThat(plan.rounds().stream().mapToInt(r -> r.quantity()).sum()).isEqualTo(plan.orderQuantity());
+        assertThat(plan.orderAmount()).isEqualByComparingTo(new java.math.BigDecimal("50000").multiply(java.math.BigDecimal.valueOf(plan.orderQuantity())));
+    }
+
+    @Test
+    void 재고가_필요_수량보다_많으면_발주_수량은_0이다() {
+        List<OrderLine> lines = new ArrayList<>(bounds(2020, 2026));
+        lines.add(line("2025-04-01", SHIRT, "95", 100));
+        UniformDataset data = dataset(lines, Map.of(2025, 1000));
+        var stock = Map.of(StockService.StockKey.of(SHIRT, "A", "95"), 999);
+
+        ItemPlan plan = calculator.plan(data, SHIRT, 2027, 1000, null, stock, List.of());
+
+        assertThat(plan.orderQuantity()).isZero();
+        assertThat(plan.sizes().getFirst().orderQuantity()).isZero();
+    }
+
+    @Test
+    void 담당자가_총량을_지정하면_과거_기록_대신_그_값으로_계산하고_근거에_밝힌다() {
+        List<OrderLine> lines = new ArrayList<>(bounds(2020, 2026));
+        lines.add(line("2025-04-01", SHIRT, "95", 100));
+        UniformDataset data = dataset(lines, Map.of(2025, 1000));
+
+        ItemPlan plan = calculator.plan(data, SHIRT, 2027, 1000, 300, Map.of(), List.of());
+
+        assertThat(plan.baseQuantity()).isEqualTo(300);
+        assertThat(plan.totalOverride()).isEqualTo(300);
+        assertThat(plan.total().rule()).contains("직접 지정").contains("300벌").contains("참고");
+    }
+
+    @Test
+    void 격년_품목의_최근_값이_이전보다_크게_낮으면_경고한다() {
+        List<OrderLine> lines = new ArrayList<>(bounds(2020, 2026));
+        lines.add(line("2021-04-01", UniformItemGroup.PADDING_VEST, "100", 117));
+        lines.add(line("2023-04-01", UniformItemGroup.PADDING_VEST, "100", 100));
+        lines.add(line("2025-04-01", UniformItemGroup.PADDING_VEST, "100", 28));
+        UniformDataset data = dataset(lines, Map.of(2025, 1000));
+
+        ItemPlan plan = calculator.plan(data, UniformItemGroup.PADDING_VEST, 2027, 1000);
+
+        assertThat(plan.warnings()).anyMatch(w -> w.contains("격년") && w.contains("크게 낮아") && w.contains("2021년 117벌"));
+        assertThat(plan.history()).extracting(y -> y.year()).contains(2021, 2023, 2025);
+    }
+
+    @Test
+    void 뜻을_모르는_사이즈_코드와_출처_혼합을_경고한다() {
+        List<OrderLine> lines = new ArrayList<>(bounds(2020, 2026));
+        lines.add(line("uniform-order-info", "2025-04-01", JUMPER, "50", 80));
+        lines.add(line("uniform-order-info", "2025-04-01", JUMPER, "91", 20));
+        lines.add(line("uniform-order", "2025-04-01", JUMPER, "100", 10));
+        UniformDataset data = dataset(lines, Map.of(2025, 1000));
+
+        ItemPlan plan = calculator.plan(data, JUMPER, 2027, 1000);
+
+        assertThat(plan.sizes().stream().filter(z -> "91".equals(z.rawSize())).findFirst().orElseThrow().unknownCode()).isTrue();
+        assertThat(plan.warnings()).anyMatch(w -> w.contains("뜻을 확인하지 못한") && w.contains("91"));
+        assertThat(plan.warnings()).anyMatch(w -> w.contains("두 파일"));
+    }
+
+    @Test
+    void 월_비중을_합_1로_환산한다() {
+        var months = List.of(new RecommendationCalculator.MonthShare(4, 47, 0.47), new RecommendationCalculator.MonthShare(8, 23, 0.23));
+
+        List<Double> shares = RecommendationCalculator.roundShares(months);
+
+        assertThat(shares.get(0)).isCloseTo(0.671, within(0.001));
+        assertThat(shares.stream().mapToDouble(Double::doubleValue).sum()).isCloseTo(1.0, within(1e-9));
+        assertThat(RecommendationCalculator.roundShares(List.of())).isEmpty();
     }
 
     private static Map<String, Double> bySize(Map<SizeKey, Double> ratios) {

@@ -1,26 +1,35 @@
 package kr.fitorder.config;
 
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.util.Map;
+import javax.sql.DataSource;
 import kr.fitorder.common.Json;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.config.Customizer;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.crypto.factory.PasswordEncoderFactories;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.provisioning.JdbcUserDetailsManager;
+import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.logout.HttpStatusReturningLogoutSuccessHandler;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
-import org.springframework.security.config.Customizer;
-import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.core.userdetails.User;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.crypto.factory.PasswordEncoderFactories;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.provisioning.InMemoryUserDetailsManager;
-import org.springframework.security.web.SecurityFilterChain;
+import tools.jackson.databind.json.JsonMapper;
 
-/** 역할: USER(담당자), ADMIN(관리자). ADMIN은 USER 화면도 쓴다. */
+/**
+ * 역할(권한):
+ * <ul>
+ *   <li>USER(담당자): 조회 + 단가·재고·발주안 입력</li>
+ *   <li>MANAGER(부서장): 조회 + 변경 기록 조회. 데이터를 바꾸지 못한다</li>
+ *   <li>ADMIN(관리자): 담당자 권한 + 데이터 관리·계정·ESG 항목 설정</li>
+ * </ul>
+ * 계정은 DB(users, authorities)에 있고 처음 시작할 때 설정(application.yml)으로 채운다.
+ */
 @Configuration
 public class SecurityConfig {
 
@@ -35,16 +44,19 @@ public class SecurityConfig {
      * curl·테스트용으로 HTTP Basic도 받는다.
      */
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    SecurityFilterChain securityFilterChain(HttpSecurity http, JsonMapper mapper, DemoProperties demo) throws Exception {
         http
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/api/auth/**").authenticated()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/api/esg/**").hasRole("ADMIN")
-                        .requestMatchers("/api/**").hasRole("USER")
+                        .requestMatchers("/api/audit/**").hasAnyRole("ADMIN", "MANAGER")
+                        .requestMatchers(HttpMethod.GET, "/api/**").hasAnyRole("USER", "MANAGER", "ADMIN")
+                        .requestMatchers("/api/**").hasAnyRole("USER", "ADMIN")
                         .anyRequest().permitAll())
                 .formLogin(form -> form
                         .loginProcessingUrl("/api/auth/login")
-                        .successHandler((req, res, auth) -> writeUser(res, auth))
+                        .successHandler((req, res, auth) -> writeUser(res, mapper, auth, demo))
                         .failureHandler((req, res, e) -> writeError(res, HttpStatus.UNAUTHORIZED,
                                 "아이디 또는 비밀번호가 맞지 않습니다.")))
                 .logout(logout -> logout
@@ -58,16 +70,17 @@ public class SecurityConfig {
         return http.build();
     }
 
-    static void writeUser(HttpServletResponse res, Authentication auth) throws IOException {
+    static void writeUser(HttpServletResponse res, JsonMapper mapper, Authentication auth, DemoProperties demo)
+            throws IOException {
         res.setStatus(HttpStatus.OK.value());
         res.setContentType("application/json;charset=UTF-8");
-        res.getWriter().write(AuthController.Me.of(auth).toJson());
+        res.getWriter().write(mapper.writeValueAsString(AuthController.Me.of(auth, demo.enabled())));
     }
 
     private static void writeError(HttpServletResponse res, HttpStatus status, String message) throws IOException {
         res.setStatus(status.value());
         res.setContentType("application/json;charset=UTF-8");
-        res.getWriter().write(Json.object(java.util.Map.of("detail", message)));
+        res.getWriter().write(Json.object(Map.of("detail", message)));
     }
 
     @Bean
@@ -75,15 +88,9 @@ public class SecurityConfig {
         return PasswordEncoderFactories.createDelegatingPasswordEncoder();
     }
 
+    /** DB(users, authorities)에서 계정을 읽는다. 계정 추가·수정은 UserAdminService가 한다. */
     @Bean
-    InMemoryUserDetailsManager userDetailsService(SecurityProperties properties, PasswordEncoder encoder) {
-        return new InMemoryUserDetailsManager(properties.users().stream()
-                .map(u -> toUser(u, encoder))
-                .toList());
-    }
-
-    private static UserDetails toUser(SecurityProperties.User u, PasswordEncoder encoder) {
-        String[] roles = "ADMIN".equals(u.role()) ? new String[] {"ADMIN", "USER"} : new String[] {u.role()};
-        return User.withUsername(u.username()).password(encoder.encode(u.password())).roles(roles).build();
+    JdbcUserDetailsManager userDetailsService(DataSource dataSource) {
+        return new JdbcUserDetailsManager(dataSource);
     }
 }

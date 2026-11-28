@@ -92,6 +92,18 @@ public class UnitPriceService {
         return result;
     }
 
+    /** 직접 입력한 단가를 지워 시장가·추정 단가로 되돌린다. 입력 기록은 변경 기록(audit_log)에 남는다. */
+    @Transactional
+    public List<PriceView> clear(UniformItemGroup group, String user) {
+        if (group == null || group == UniformItemGroup.UNKNOWN) {
+            throw new BusinessException("품목군을 지정하세요.");
+        }
+        int removed = jdbc.update("delete from unit_price where item = ?", group.name());
+        audit.record(user, "PRICE_CLEAR", group.name(), "직접 입력 " + removed + "건 삭제(시장가·추정 단가로 되돌림)");
+        events.publishEvent(new EsgDataChangedEvent(UniformModule.CODE, "단가 되돌림"));
+        return list();
+    }
+
     /** 오늘부터 적용되는 단가를 넣는다. 이전 값은 이력으로 남는다. */
     @Transactional
     public List<PriceView> update(List<Change> changes, String user) {

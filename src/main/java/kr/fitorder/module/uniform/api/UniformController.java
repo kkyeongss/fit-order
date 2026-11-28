@@ -2,7 +2,10 @@ package kr.fitorder.module.uniform.api;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import kr.fitorder.common.BusinessException;
 import kr.fitorder.common.Basis;
 import kr.fitorder.module.uniform.analysis.Backtester;
 import kr.fitorder.module.uniform.analysis.RecommendationService;
@@ -68,14 +71,32 @@ public class UniformController {
     public ResponseEntity<byte[]> export(@RequestParam(required = false) Integer year,
                                          @RequestParam(required = false) List<UniformItemGroup> groups,
                                          @RequestParam(required = false) Integer headcount,
-                                         @RequestParam(defaultValue = "dedup") Basis basis) {
-        Recommendation rec = recommendations.recommend(new Request(year, groups, headcount, basis));
+                                         @RequestParam(defaultValue = "dedup") Basis basis,
+                                         @RequestParam(required = false) String totals) {
+        Recommendation rec = recommendations.recommend(new Request(year, groups, headcount, basis, parseTotals(totals)));
         String fileName = URLEncoder.encode(rec.year() + "년_근무복_발주표.xlsx", StandardCharsets.UTF_8)
                 .replace("+", "%20");
         return ResponseEntity.ok()
                 .contentType(XLSX)
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename*=UTF-8''" + fileName)
                 .body(RecommendationExcel.write(rec));
+    }
+
+    /** 'SHIRT:500,JACKET:20' 형식의 총량 직접 지정값. */
+    static Map<UniformItemGroup, Integer> parseTotals(String text) {
+        if (text == null || text.isBlank()) {
+            return null;
+        }
+        Map<UniformItemGroup, Integer> result = new LinkedHashMap<>();
+        for (String part : text.split(",")) {
+            String[] kv = part.strip().split(":");
+            try {
+                result.put(UniformItemGroup.valueOf(kv[0].strip()), Integer.parseInt(kv[1].strip()));
+            } catch (RuntimeException e) {
+                throw new BusinessException("총량 지정 형식이 올바르지 않습니다(예: SHIRT:500,JACKET:20): " + part);
+            }
+        }
+        return result;
     }
 
     /** 추천 로직 백테스트: 기준선(직전 1년, 직전 2년 평균)과 비교. */

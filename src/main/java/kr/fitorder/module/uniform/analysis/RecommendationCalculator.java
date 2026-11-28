@@ -10,6 +10,7 @@ import java.util.Optional;
 import java.util.OptionalDouble;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import kr.fitorder.module.uniform.UniformProperties;
 import kr.fitorder.module.uniform.analysis.UniformAnalysis.Savings;
 import kr.fitorder.module.uniform.analysis.UniformDataset.PriceSource;
 import kr.fitorder.module.uniform.analysis.UniformDataset.YearHeadcount;
@@ -37,14 +38,36 @@ public class RecommendationCalculator {
     public record TotalEstimate(List<Integer> years, double quantity, String rule) {
     }
 
+    /**
+     * @param stock         현재 재고(담당자 입력)
+     * @param orderQuantity 발주 수량 = max(0, 추천 수량 − 재고)
+     * @param rounds        정기 발주 회차별(4월·8월 등) 발주 수량. 합이 orderQuantity와 같다
+     * @param unknownCode   뜻을 확인하지 못한 사이즈 코드(설정의 unknown-sizes)
+     */
     public record SizeLine(String source, String rawSize, String size, double ratio, int base, int safety,
-                           int quantity) {
+                           int quantity, int stock, int orderQuantity, List<Integer> rounds, boolean unknownCode) {
     }
 
+    public record YearQuantity(int year, int quantity) {
+    }
+
+    public record RoundQty(int month, int quantity, BigDecimal amount) {
+    }
+
+    /**
+     * @param quantity      필요 수량(안전재고 포함). 재고를 빼기 전
+     * @param amount        필요 수량 기준 금액
+     * @param orderQuantity 재고를 뺀 발주 수량, orderAmount는 그 금액
+     * @param warnings      담당자가 확인해야 할 점(격년 품목, 뜻 모르는 사이즈 코드, 출처 혼합 등)
+     * @param history       최근 연도별 주문량(근거 확인용)
+     * @param totalOverride 담당자가 총량을 직접 지정했으면 그 값
+     */
     public record ItemPlan(UniformItemGroup group, String label, TotalEstimate total, Integer headcountYear,
                            Integer baseHeadcount, double headcountFactor, int baseQuantity, double safetyRate,
                            int safetyQuantity, int quantity, String sizeRule, List<SizeLine> sizes,
-                           BigDecimal unitPrice, PriceSource priceSource, BigDecimal amount, Savings savings) {
+                           BigDecimal unitPrice, PriceSource priceSource, BigDecimal amount, Savings savings,
+                           int stockTotal, int orderQuantity, BigDecimal orderAmount, List<RoundQty> rounds,
+                           List<String> warnings, List<YearQuantity> history, Integer totalOverride) {
 
         public boolean priceEstimated() {
             return priceSource == PriceSource.ESTIMATE;
@@ -54,23 +77,38 @@ public class RecommendationCalculator {
     public record MonthShare(int month, int quantity, double share) {
     }
 
+    private static final int HISTORY_YEARS = 6;
+
     private final UniformAnalysis analysis;
     private final AnalysisProperties props;
+    private final UniformProperties uniform;
 
-    public RecommendationCalculator(UniformAnalysis analysis) {
+    public RecommendationCalculator(UniformAnalysis analysis, UniformProperties uniform) {
         this.analysis = analysis;
         this.props = analysis.properties();
+        this.uniform = uniform;
+    }
+
+    /** 재고·총량 지정·회차 없이 계산한다(단위 테스트·기본 계산). */
+    public ItemPlan plan(UniformDataset data, UniformItemGroup group, int targetYear, Integer headcount) {
+        return plan(data, group, targetYear, headcount, null, Map.of(), List.of());
     }
 
     /**
      * 품목군 하나의 추천.
      *
-     * @param headcount 발주 대상 인원. null이면 인원 보정을 하지 않는다
+     * @param headcount     발주 대상 인원. null이면 인원 보정을 하지 않는다
+     * @param totalOverride 담당자가 1단계 총량을 직접 지정한 값(null이면 과거 기록으로 계산)
+     * @param stock         현재 재고
+     * @param roundShares   정기 발주 회차별 비율(합 1). 비어 있으면 회차 분할을 하지 않는다
      */
-    public ItemPlan plan(UniformDataset data, UniformItemGroup group, int targetYear, Integer headcount) {
-        TotalEstimate total = total(data, group, targetYear);
+    public ItemPlan plan(UniformDataset data, UniformItemGroup group, int targetYear, Integer headcount,
+                         Integer totalOverride, Map<StockService.StockKey, Integer> stock, List<Double> roundShares) {
+        TotalEstimate computed = total(data, group, targetYear);
+        TotalEstimate total = totalOverride == null ? computed : new TotalEstimate(computed.years(), totalOverride,
+                "담당자가 총량을 직접 지정: " + totalOverride + "벌 (참고: " + computed.rule() + ")");
 
-        int headcountYear = total.years().stream().mapToInt(Integer::intValue).max().orElse(targetYear - 1);
+        int headcountYear = computed.years().stream().mapToInt(Integer::intValue).max().orElse(targetYear - 1);
         YearHeadcount base = data.headcounts().get(headcountYear);
         double factor = headcount != null && base != null && base.headcount() > 0
                 ? headcount / (double) base.headcount() : 1.0;
@@ -82,16 +120,34 @@ public class RecommendationCalculator {
         Map<SizeKey, Double> ratios = sizeRatios(data, group, targetYear);
         Map<SizeKey, Integer> baseBySize = allocate(baseQuantity, ratios);
         Map<SizeKey, Integer> safetyBySize = allocate(safety, ratios);
-        List<SizeLine> sizes = ratios.entrySet().stream()
-                .map(e -> {
-                    int b = baseBySize.get(e.getKey());
-                    int s = safetyBySize.get(e.getKey());
-                    return new SizeLine(e.getKey().source(), e.getKey().rawSize(), e.getKey().size(), e.getValue(),
-                            b, s, b + s);
-                })
-                .toList();
-
+        Map<Integer, Double> roundRatios = new LinkedHashMap<>();
+        for (int i = 0; i < roundShares.size(); i++) {
+            roundRatios.put(i, roundShares.get(i));
+        }
         var price = data.priceOf(group);
+        List<SizeLine> sizes = new ArrayList<>();
+        for (var e : ratios.entrySet()) {
+            SizeKey k = e.getKey();
+            int b = baseBySize.get(k);
+            int sf = safetyBySize.get(k);
+            int need = b + sf;
+            int inStock = stock.getOrDefault(StockService.StockKey.of(group, k.source(), k.rawSize()), 0);
+            int order = Math.max(0, need - inStock);
+            List<Integer> rounds = roundRatios.isEmpty() ? List.of()
+                    : new ArrayList<>(allocate(order, roundRatios).values());
+            boolean unknown = k.rawSize() != null && uniform.unknownSizesOf(k.source()).contains(k.rawSize());
+            sizes.add(new SizeLine(k.source(), k.rawSize(), k.size(), e.getValue(), b, sf, need, inStock, order,
+                    rounds, unknown));
+        }
+
+        int orderQuantity = sizes.stream().mapToInt(SizeLine::orderQuantity).sum();
+        List<RoundQty> rounds = new ArrayList<>();
+        for (int i = 0; i < roundShares.size(); i++) {
+            int idx = i;
+            int q = sizes.stream().mapToInt(z -> z.rounds().get(idx)).sum();
+            rounds.add(new RoundQty(i, q, price.price().multiply(BigDecimal.valueOf(q))));
+        }
+
         Savings savings = analysis.latestComparison(data)
                 .flatMap(c -> {
                     OptionalDouble rate = analysis.mismatch(data, group, c);
@@ -103,7 +159,68 @@ public class RecommendationCalculator {
         return new ItemPlan(group, group.label(), total, base == null ? null : headcountYear,
                 base == null ? null : base.headcount(), factor, baseQuantity, safetyRate, safety,
                 baseQuantity + safety, sizeRule(data, group, targetYear), sizes, price.price(), price.source(),
-                price.price().multiply(BigDecimal.valueOf(baseQuantity + safety)), savings);
+                price.price().multiply(BigDecimal.valueOf(baseQuantity + safety)), savings,
+                sizes.stream().mapToInt(SizeLine::stock).sum(), orderQuantity,
+                price.price().multiply(BigDecimal.valueOf(orderQuantity)), rounds,
+                warnings(data, group, targetYear, sizes, computed, totalOverride), history(data, group), totalOverride);
+    }
+
+    /** 최근 연도별 주문량(완전한 해, 오래된 해부터). */
+    List<YearQuantity> history(UniformDataset data, UniformItemGroup group) {
+        Map<Integer, Integer> byYear = UniformAnalysis.quantityByYear(data.lines(group));
+        return data.completeYears().stream().sorted(Comparator.reverseOrder()).limit(HISTORY_YEARS)
+                .sorted().map(y -> new YearQuantity(y, byYear.getOrDefault(y, 0))).toList();
+    }
+
+    /** 담당자가 주문서를 쓰기 전에 확인해야 할 점. */
+    private List<String> warnings(UniformDataset data, UniformItemGroup group, int targetYear, List<SizeLine> sizes,
+                                  TotalEstimate computed, Integer totalOverride) {
+        List<String> result = new ArrayList<>();
+        if (props.biennialGroups().contains(group) && totalOverride == null) {
+            Map<Integer, Integer> byYear = UniformAnalysis.quantityByYear(data.lines(group));
+            List<Integer> sameParity = pastYears(data, targetYear).stream()
+                    .filter(y -> (targetYear - y) % 2 == 0).limit(4).sorted().toList();
+            if (sameParity.size() >= 2) {
+                int last = byYear.getOrDefault(sameParity.getLast(), 0);
+                double earlier = sameParity.subList(0, sameParity.size() - 1).stream()
+                        .mapToInt(y -> byYear.getOrDefault(y, 0)).average().orElse(0);
+                String record = sameParity.stream().map(y -> y + "년 " + byYear.getOrDefault(y, 0) + "벌")
+                        .collect(Collectors.joining(", "));
+                if (earlier > 0 && last < earlier * 0.5) {
+                    result.add("격년 주문 품목입니다. 같은 홀짝 해 기록(" + record + ") 중 가장 최근 값만 쓰는데, 이전 해(평균 "
+                            + Math.round(earlier) + "벌)보다 크게 낮아 부족하게 주문할 위험이 있습니다. 총량을 직접 지정해 보세요.");
+                } else if (earlier > 0 && last > earlier * 1.5) {
+                    result.add("격년 주문 품목입니다. 같은 홀짝 해 기록(" + record + ") 중 가장 최근 값만 쓰는데, 이전 해(평균 "
+                            + Math.round(earlier) + "벌)보다 크게 높아 많이 주문할 위험이 있습니다. 총량을 직접 지정해 보세요.");
+                } else {
+                    result.add("격년 주문 품목입니다. 같은 홀짝 해 기록(" + record + ") 중 가장 최근 값을 총량으로 씁니다.");
+                }
+            } else if (sameParity.size() == 1) {
+                result.add("격년 주문 품목인데 같은 홀짝 해 기록이 1개뿐이라 근거가 약합니다.");
+            }
+        }
+        List<SizeLine> used = sizes.stream().filter(z -> z.quantity() > 0 || z.stock() > 0).toList();
+        List<SizeLine> unknown = used.stream().filter(z -> z.unknownCode() && z.quantity() > 0).toList();
+        if (!unknown.isEmpty()) {
+            result.add("뜻을 확인하지 못한 사이즈 코드가 있습니다: " + unknown.stream()
+                    .map(z -> z.rawSize() + "(" + z.quantity() + "벌)").collect(Collectors.joining(", "))
+                    + ". 기관에 코드 뜻을 확인한 뒤 주문하세요.");
+        }
+        long sources = used.stream().map(SizeLine::source).distinct().count();
+        if (sources > 1 && used.stream().anyMatch(z -> z.size().endsWith(")"))) {
+            result.add("사이즈 체계가 다른 두 파일의 사이즈가 섞여 있습니다. 같은 사이즈 코드라도 파일마다 뜻이 다를 수 있어"
+                    + " 구분해 표시했습니다. 코드 뜻을 확인한 뒤 주문서를 쓰세요.");
+        }
+        return result;
+    }
+
+    /** 회차별(4월·8월 등) 비율을 합 1로 맞춘다. 월 비중이 모두 0이면 빈 목록. */
+    public static List<Double> roundShares(List<MonthShare> months) {
+        double sum = months.stream().mapToDouble(MonthShare::share).sum();
+        if (sum <= 0) {
+            return List.of();
+        }
+        return months.stream().map(m -> m.share() / sum).toList();
     }
 
     /** 1단계: 총량. */

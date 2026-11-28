@@ -1,6 +1,7 @@
 package kr.fitorder.module.uniform.api;
 
 import java.util.List;
+import kr.fitorder.module.uniform.analysis.CarbonFactorService;
 import kr.fitorder.module.uniform.analysis.UnitPriceService;
 import kr.fitorder.module.uniform.analysis.UnitPriceService.Change;
 import kr.fitorder.module.uniform.analysis.UnitPriceService.PriceView;
@@ -30,9 +31,11 @@ public class UniformAdminController {
     private final UnitPriceService prices;
     private final MarketPriceService market;
     private final GreenProductService green;
+    private final CarbonFactorService carbon;
 
     public UniformAdminController(QualityReportService quality, UnitPriceService prices, MarketPriceService market,
-                                  GreenProductService green) {
+                                  GreenProductService green, CarbonFactorService carbon) {
+        this.carbon = carbon;
         this.quality = quality;
         this.prices = prices;
         this.market = market;
@@ -53,6 +56,18 @@ public class UniformAdminController {
     @PutMapping("/prices")
     public List<PriceView> updatePrices(@RequestBody List<Change> changes, Authentication auth) {
         return prices.update(changes, auth.getName());
+    }
+
+    /** 탄소계수와 출처. 바꾸면 탄소 감축량 지표가 다시 계산된다. */
+    @GetMapping("/carbon-factors")
+    public List<CarbonFactorService.FactorView> carbonFactors() {
+        return carbon.list();
+    }
+
+    @PutMapping("/carbon-factors")
+    public List<CarbonFactorService.FactorView> updateCarbonFactors(@RequestBody List<CarbonFactorService.Change> changes,
+                                                                    Authentication auth) {
+        return carbon.update(changes, auth.getName());
     }
 
     /** 품목군별 조달청 쇼핑몰 시장가와 환경표지제품 수. */
