@@ -11,10 +11,12 @@ import java.util.List;
 import java.util.Objects;
 import kr.fitorder.admin.AuditService;
 import kr.fitorder.common.BusinessException;
+import kr.fitorder.common.ResultsChangedEvent;
 import kr.fitorder.ingestion.CsvUploadIngestion;
 import kr.fitorder.module.uniform.domain.UniformItemGroup;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVRecord;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,13 +43,15 @@ public class GreenProductService {
     private final MarketPriceService classifier;
     private final JdbcTemplate jdbc;
     private final AuditService audit;
+    private final ApplicationEventPublisher events;
 
     public GreenProductService(GreenProductSource api, MarketPriceService classifier, JdbcTemplate jdbc,
-                               AuditService audit) {
+                               AuditService audit, ApplicationEventPublisher events) {
         this.api = api;
         this.classifier = classifier;
         this.jdbc = jdbc;
         this.audit = audit;
+        this.events = events;
     }
 
     @Transactional
@@ -137,6 +141,7 @@ public class GreenProductService {
         int valid = groups.stream().mapToInt(GroupSummary::validCount).sum();
         audit.record(user, "GREEN_PRODUCT_" + method, "keiti-green-product",
                 products.size() + "개 제품, 유효 인증 " + valid);
+        events.publishEvent(new ResultsChangedEvent("녹색제품 갱신"));
         return new FetchResult(products.size(), valid, groups);
     }
 

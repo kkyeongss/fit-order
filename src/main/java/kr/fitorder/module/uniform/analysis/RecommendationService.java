@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Objects;
 import kr.fitorder.common.Basis;
 import kr.fitorder.common.BusinessException;
+import kr.fitorder.common.ResultCache;
 import kr.fitorder.module.uniform.analysis.RecommendationCalculator.ItemPlan;
 import kr.fitorder.module.uniform.analysis.RecommendationCalculator.MonthShare;
 import kr.fitorder.module.uniform.analysis.UniformDataset.YearHeadcount;
@@ -48,19 +49,30 @@ public class RecommendationService {
     private final AnalysisProperties props;
     private final MarketPriceService market;
     private final GreenProductService green;
+    private final ResultCache cache;
 
     public RecommendationService(UniformDatasetLoader loader, RecommendationCalculator calculator,
                                  Backtester backtester, AnalysisProperties props, MarketPriceService market,
-                                 GreenProductService green) {
+                                 GreenProductService green, ResultCache cache) {
         this.loader = loader;
         this.calculator = calculator;
         this.backtester = backtester;
         this.props = props;
         this.market = market;
         this.green = green;
+        this.cache = cache;
     }
 
+    /** 같은 입력은 데이터가 바뀔 때까지 다시 계산하지 않는다. 품목 순서·빈 목록처럼 뜻이 같은 입력은 하나로 본다. */
     public Recommendation recommend(Request request) {
+        List<UniformItemGroup> groups = request.groups() == null || request.groups().isEmpty() ? null
+                : request.groups().stream().distinct().sorted().toList();
+        Request normalized = new Request(request.year(), groups, request.headcount(),
+                request.basis() == null ? Basis.DEDUP : request.basis());
+        return cache.get("recommend|" + normalized, () -> compute(normalized));
+    }
+
+    private Recommendation compute(Request request) {
         Basis basis = request.basis() == null ? Basis.DEDUP : request.basis();
         UniformDataset data = loader.load(basis);
         if (data.lines().isEmpty()) {
@@ -99,6 +111,7 @@ public class RecommendationService {
     }
 
     public Backtester.Result backtest(Basis basis) {
-        return backtester.run(loader.load(basis == null ? Basis.DEDUP : basis));
+        Basis b = basis == null ? Basis.DEDUP : basis;
+        return cache.get("backtest|" + b, () -> backtester.run(loader.load(b)));
     }
 }

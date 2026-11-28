@@ -29,6 +29,11 @@ else
   grep -q '^/swapfile2 ' /etc/fstab || echo '/swapfile2 none swap sw 0 0' >> /etc/fstab
 fi
 
+# 파일 캐시가 남아 있는데도 앱 메모리를 먼저 swap으로 내보내면 같은 서버의 다른 서비스가 느려진다(2026-11 piggy 응답이 7초까지 늘어남).
+# 파일 캐시를 먼저 비우도록 swappiness를 낮춘다.
+echo 'vm.swappiness = 10' > /etc/sysctl.d/99-fitorder-swappiness.conf
+sysctl -q -p /etc/sysctl.d/99-fitorder-swappiness.conf
+
 log "2/6 PostgreSQL 18"
 if ! dpkg -s postgresql-18 >/dev/null 2>&1; then
   apt-get update -qq

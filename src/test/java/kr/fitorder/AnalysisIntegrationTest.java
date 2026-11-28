@@ -59,7 +59,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
  * 실제 근무복 CSV로 지표·추천·백테스트가 기획서 수치를 재현하는지, 데이터가 바뀌면 지표가 다시 계산되는지 고정한다.
  * 정원은 실제 Open API 값(2023~2026 마지막 기준일자 합계)을 작은 CSV로 넣는다.
  */
-@SpringBootTest
+@SpringBootTest(properties = "fitorder.warmup=false")
 @AutoConfigureMockMvc
 @Testcontainers
 class AnalysisIntegrationTest {
@@ -76,6 +76,7 @@ class AnalysisIntegrationTest {
     @Autowired UniformDatasetLoader loader;
     @Autowired Backtester backtester;
     @Autowired RecommendationService recommendations;
+    @Autowired kr.fitorder.module.uniform.analysis.UniformReportService reports;
     @Autowired UnitPriceService prices;
     @Autowired SizeMappingService sizeMappings;
     @Autowired MarketPriceService market;
@@ -207,6 +208,32 @@ class AnalysisIntegrationTest {
                 .orElseThrow();
         assertThat(shirt.validCount()).isZero();   // 인증 만료
         assertThat(rec.greenProducts()).anyMatch(g -> g.group() == null && g.validCount() == 1);
+    }
+
+    @Test
+    void 계산_결과는_저장해_두되_데이터가_바뀌면_바로_새로_계산한다() {
+        Request request = new Request(null, null, null, null);
+        Recommendation first = recommendations.recommend(request);
+        // 같은 입력(뜻이 같은 입력 포함)은 다시 계산하지 않는다
+        assertThat(recommendations.recommend(request)).isSameAs(first);
+        assertThat(recommendations.recommend(new Request(null, List.of(), null, Basis.DEDUP))).isSameAs(first);
+        var summary = reports.summary(Basis.DEDUP);
+        assertThat(reports.summary(Basis.DEDUP)).isSameAs(summary);
+
+        // 단가를 바꾸면 추천 금액과 절감액이 바로 달라진다(낡은 결과가 남지 않는다)
+        prices.update(List.of(new UnitPriceService.Change(UniformItemGroup.SHIRT, new BigDecimal("20000"))), "admin");
+        Recommendation second = recommendations.recommend(request);
+        assertThat(second).isNotSameAs(first);
+        var shirtBefore = first.items().stream().filter(i -> i.group() == UniformItemGroup.SHIRT).findFirst().orElseThrow();
+        var shirtAfter = second.items().stream().filter(i -> i.group() == UniformItemGroup.SHIRT).findFirst().orElseThrow();
+        assertThat(shirtAfter.unitPrice()).isEqualByComparingTo("20000");
+        assertThat(shirtAfter.unitPrice()).isNotEqualByComparingTo(shirtBefore.unitPrice());
+        assertThat(shirtAfter.amount()).isEqualByComparingTo(new BigDecimal("20000").multiply(BigDecimal.valueOf(shirtAfter.quantity())));
+
+        // 녹색제품을 올려도 추천 화면의 녹색구매 비교가 바로 바뀐다
+        assertThat(second.greenProducts().stream().mapToInt(g -> g.validCount()).sum()).isZero();
+        green.upload("상품명,인증종료일,인증기업명\n근무복 바지,20291231,다원\n".getBytes(java.nio.charset.StandardCharsets.UTF_8), "admin");
+        assertThat(recommendations.recommend(request).greenProducts().stream().mapToInt(g -> g.validCount()).sum()).isPositive();
     }
 
     @Test

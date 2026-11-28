@@ -17,7 +17,7 @@
 | 로그 | `journalctl -u fitorder -f` |
 | DB | 로컬 PostgreSQL 18, DB·계정 `fitorder` (비밀번호는 환경 파일) |
 
-같은 서버의 다른 서비스를 지키는 장치: 핏오더 메모리 상한(`MemoryHigh=400M`, `MemoryMax=480M`), 메모리가 모자라면 핏오더가 먼저 종료되도록(`OOMScoreAdjust=300`), swap 2GB 추가, 포트는 127.0.0.1에만 열기.
+같은 서버의 다른 서비스를 지키는 장치: 핏오더 메모리 상한(`MemoryHigh=400M`, `MemoryMax=480M`), 메모리가 모자라면 핏오더가 먼저 종료되도록(`OOMScoreAdjust=300`), swap 2GB 추가, `vm.swappiness=10`(앱 메모리보다 파일 캐시를 먼저 비움), 포트는 127.0.0.1에만 열기.
 힙은 `-Xmx160m`이지만 프로세스는 약 280MB를 쓴다(2026-11 측정). 서버가 넉넉하면 `fitorder.service`의 `JAVA_OPTS`와 메모리 상한을 키운다.
 
 ## 처음 한 번
@@ -30,6 +30,11 @@ DEPLOY_HOST=ubuntu@서버IP DEPLOY_KEY=SSH키경로 deploy/deploy.sh setup
 
 `setup`은 서버 설정(`setup-server.sh`: swap, PostgreSQL 18, DB·계정, 앱 사용자, 환경 파일, systemd)을 하고, 로컬 `.env`의 `DATA_GO_KR_SERVICE_KEY`를 서버 환경 파일에 넣고, jar를 만들어 올려 시작한다. 여러 번 실행해도 안전하다.
 설정 중 패키지 설치로 다른 서비스가 재시작되지 않게(`NEEDRESTART_MODE=l`) 했고, 서버의 기존 서비스는 건드리지 않는다.
+
+## 주의: 서버가 아주 느리다
+
+시연 서버(무료 VM, CPU가 우리 PC의 약 20배 느림)에서는 재시작할 때 시작에 35초, 지표 재계산과 워밍업까지 길게는 몇 분 걸리고, 그동안 같은 서버의 다른 서비스도 느려진다(2026-11-28 piggy 응답이 7초까지 늘었다가 회복).
+그래서 **재배포는 한가한 시간에** 하고, 제출·심사 기간에는 가급적 다시 올리지 않는다. 평소 화면은 계산 결과를 메모리에 두어 0.1~0.5초에 열린다(`ResultCache`, 서버가 뜬 직후 `UniformWarmUp`이 미리 계산).
 
 ## 새 버전 올리기
 

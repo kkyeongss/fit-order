@@ -32,7 +32,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
  * 실제 공공데이터 CSV를 실제 PostgreSQL에 적재해 기획서의 분석 수치가 재현되는지 고정한다.
  * Docker가 필요하다(로컬은 Colima).
  */
-@SpringBootTest
+@SpringBootTest(properties = "fitorder.warmup=false")
 @Testcontainers
 class LoadIntegrationTest {
 

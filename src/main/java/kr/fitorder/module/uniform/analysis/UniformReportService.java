@@ -10,6 +10,7 @@ import java.util.SortedSet;
 import java.util.stream.Collectors;
 import kr.fitorder.common.Basis;
 import kr.fitorder.common.BusinessException;
+import kr.fitorder.common.ResultCache;
 import kr.fitorder.module.uniform.analysis.Period.Comparison;
 import kr.fitorder.module.uniform.analysis.UniformDataset.YearHeadcount;
 import kr.fitorder.module.uniform.domain.UniformItemGroup;
@@ -64,14 +65,21 @@ public class UniformReportService {
     private final UniformDatasetLoader loader;
     private final UniformAnalysis analysis;
     private final JdbcTemplate jdbc;
+    private final ResultCache cache;
 
-    public UniformReportService(UniformDatasetLoader loader, UniformAnalysis analysis, JdbcTemplate jdbc) {
+    public UniformReportService(UniformDatasetLoader loader, UniformAnalysis analysis, JdbcTemplate jdbc,
+                                ResultCache cache) {
         this.loader = loader;
         this.analysis = analysis;
         this.jdbc = jdbc;
+        this.cache = cache;
     }
 
     public Summary summary(Basis basis) {
+        return cache.get("summary|" + basis, () -> computeSummary(basis));
+    }
+
+    private Summary computeSummary(Basis basis) {
         UniformDataset raw = loader.load(Basis.RAW);
         UniformDataset data = raw.withBasis(basis);
         SortedSet<Integer> complete = data.completeYears();
@@ -114,6 +122,10 @@ public class UniformReportService {
 
     /** 품목군별 사이즈 분석. group이 null이면 전 품목군. */
     public List<SizeAnalysis> sizes(Basis basis, UniformItemGroup group) {
+        return cache.get("sizes|" + basis + "|" + group, () -> computeSizes(basis, group));
+    }
+
+    private List<SizeAnalysis> computeSizes(Basis basis, UniformItemGroup group) {
         UniformDataset data = loader.load(basis);
         Optional<Comparison> comparison = analysis.latestComparison(data);
         List<UniformItemGroup> groups = group == null ? data.groups() : List.of(group);
@@ -164,6 +176,10 @@ public class UniformReportService {
     }
 
     public HeadcountView headcount() {
+        return cache.get("headcount", this::computeHeadcount);
+    }
+
+    private HeadcountView computeHeadcount() {
         UniformDataset data = loader.load(Basis.DEDUP);
         List<YearHeadcount> years = data.headcounts().values().stream()
                 .sorted(java.util.Comparator.comparingInt(YearHeadcount::year)).toList();
