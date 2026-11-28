@@ -6,10 +6,13 @@ import java.util.List;
 import java.util.Map;
 import kr.fitorder.admin.AuditService;
 import kr.fitorder.common.BusinessException;
+import kr.fitorder.common.EsgDataChangedEvent;
 import kr.fitorder.ingestion.DataSourceService;
+import kr.fitorder.module.uniform.UniformModule;
 import kr.fitorder.module.uniform.domain.SizeMapping;
 import kr.fitorder.module.uniform.domain.SizeMappingRepository;
 import kr.fitorder.module.uniform.domain.UniformOrderRepository;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,13 +41,15 @@ public class SizeMappingService {
     private final SizeMappingRepository mappings;
     private final DataSourceService sources;
     private final AuditService audit;
+    private final ApplicationEventPublisher events;
 
     public SizeMappingService(UniformOrderRepository orders, SizeMappingRepository mappings,
-                              DataSourceService sources, AuditService audit) {
+                              DataSourceService sources, AuditService audit, ApplicationEventPublisher events) {
         this.orders = orders;
         this.mappings = mappings;
         this.sources = sources;
         this.audit = audit;
+        this.events = events;
     }
 
     /** 활성 데이터에 나오는 사이즈 코드 전체와 현재 매핑. */
@@ -77,6 +82,7 @@ public class SizeMappingService {
             audit.record(user, "SIZE_MAPPING", change.source() + "/" + change.rawSize(),
                     standard.isEmpty() ? "삭제" : "→ " + standard);
         }
+        events.publishEvent(new EsgDataChangedEvent(UniformModule.CODE, "사이즈 매핑 변경"));
     }
 
     /** 화면·엑셀에 쓸 사이즈 이름표를 만든다. 한 번 읽어 두고 여러 행에 쓴다. */

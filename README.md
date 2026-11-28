@@ -5,7 +5,7 @@ ESG 항목은 모듈 단위로 추가하며, 첫 모듈은 근무복이다.
 
 ## 기술 스택
 
-Java 21 · Spring Boot 4.1 (Web MVC, Security, Data JPA) · PostgreSQL 18 · Flyway · JUnit 5 · Testcontainers
+Java 21 · Spring Boot 4.1 (Web MVC, Security, Data JPA) · PostgreSQL 18 · Flyway · Apache POI · JUnit 5 · Testcontainers
 
 ## 실행
 
@@ -52,15 +52,52 @@ docker compose up -d        # PostgreSQL 18
 - 원천별 적재 방식·API 주소·인코딩·컬럼 매핑을 DB에서 관리 → CSV가 Open API로 바뀌거나 망분리로 API를 못 쓰게 돼도 설정만 변경
 - 미리보기: 원천을 실제로 읽어 컬럼·앞쪽 행·매핑 누락 확인(적재 안 함)
 
+**지표** (적재·단가·사이즈 매핑 변경 커밋 직후, 그리고 시작할 때 dedup/raw 두 기준으로 계산해 `esg_metric_value`에 저장)
+
+| 지표 | 계산식 | 기간 |
+| --- | --- | --- |
+| 연간 주문량 | 품목군별·전체 합계 | 연도 |
+| 사이즈 미스매치율 | Σ max(0, 최근 3년 비율 − 이전 3년 비율) | 최근 구간(`2023-2025`) |
+| 연간 발주 일수 | 두 데이터를 합친 고유 주문일 수 | 연도 |
+| 소량 발주 비율 | 하루 10벌 이하 주문일 ÷ 전체 주문일 | 연도 |
+| 1인당 지급량 | 연간 주문량 ÷ 그해 마지막 기준일자 정원 (2021년부터) | 연도 |
+| 절감 수량·절감액·탄소 감축량 | 미스매치율 × 연간 주문량 × 개선률 50%, × 단가, × 탄소계수 | 최근 구간 |
+
+- 불완전 연도(첫 해·마지막 해 중 1년치가 안 되는 해: 2017, 2026)는 지표·평균·추천·백테스트에서 뺀다
+- 단가를 입력하지 않은 품목은 추정 단가(5.3만원)로 계산하고 '추정'으로 표시
+
+**발주 추천** (규칙 기반, 계수는 `fitorder.uniform.analysis` 설정)
+1. 총량 = 직전 2년 평균. 재킷·패딩조끼는 격년 주문이라 같은 홀짝의 가장 최근 해 값
+2. 인원 보정 = 총량 × (입력 인원 ÷ 기준 연도 정원). 인원 기본값은 최근 정원
+3. 사이즈 배분 = 출처 비중으로 먼저 나누고(점퍼는 두 출처) 출처 안 사이즈 비율로 나눔. 둘 다 최근 3년 3:2:1 가중
+4. 안전재고 = 기본 5%, 백테스트 오차 40% 이상인 재킷·바지·패딩조끼 10%
+5. 정기 발주 시기 = 4·8월과 과거 수량 비중
+
+결과는 저장하지 않고 화면·엑셀 모두 같은 입력으로 다시 계산한다. 엑셀 발주표에는 행마다 근거(어느 해 평균, 보정 배율, 가중치)가 들어간다.
+
 **검증** (실제 데이터로 통합 테스트에 고정)
-- 중복 327·331행, 수량 결측 41행, 2020~2025 연평균 1,402벌
+- 중복 327·331행, 수량 결측 41행, 2020~2025 연평균 1,402벌, 연평균 발주 28.7일
+- 미스매치율 셔츠 16.1%, 점퍼 17.8% (2020~22년 비율로 2023~25년 주문 시)
+- 백테스트 2022~2025: 기준선 총량 오차 17.6%(직전 1년)·21.8%(직전 2년 평균) 재현. 추천은 사이즈 오차 42.0%로 기준선(58.4%·44.4%)보다 작고, 격년 규칙으로 재킷 총량 오차 154% → 43%
 
 ## API
 
-모두 로그인 필요. `/api/admin/**`은 ADMIN 전용. POST·PUT은 `XSRF-TOKEN` 쿠키 값을 `X-XSRF-TOKEN` 헤더로 보낸다.
+모두 로그인 필요. `/api/admin/**`과 `PUT /api/esg/**`는 ADMIN 전용. POST·PUT은 `XSRF-TOKEN` 쿠키 값을 `X-XSRF-TOKEN` 헤더로 보낸다.
+집계 API는 `basis=dedup|raw`(기본 `dedup`)를 받는다.
 
 | 메서드 | 경로 | 용도 |
 | --- | --- | --- |
+| GET | `/api/esg/items` | ESG 항목 목록과 지표 정의 |
+| PUT | `/api/esg/items/{code}` | 사용 여부·적재 방식 변경 (`enabled`, `loadMethod`) |
+| GET | `/api/esg/items/{code}/metrics` | 저장된 지표 값 (`basis`, 선택 `period`) |
+| GET | `/api/uniform/summary` | 연도별 주문량(중복 구분)·품목군별·발주 일수, 월별 집중도, 1인당 지급량, 연평균 |
+| GET | `/api/uniform/sizes` | 품목군별 사이즈 비율(연도별), 두 구간 비교, 미스매치율 (선택 `group`) |
+| GET | `/api/uniform/headcount` | 연도별 정원, 최근 정원(추천 기본값)과 직군별 |
+| POST | `/api/uniform/recommendation` | 발주 추천 (`year`, `groups`, `headcount`, `basis` 모두 선택) |
+| GET | `/api/uniform/recommendation/export` | 발주표 엑셀 (추천과 같은 입력을 쿼리 파라미터로) |
+| GET | `/api/uniform/backtest` | 추천 로직 백테스트 |
+| GET | `/api/admin/quality` | 품질 리포트 (출처별 중복·플래그·예시 행·미매핑 사이즈) |
+| GET·PUT | `/api/admin/prices` | 품목군별 단가 조회·입력 (`[{group, price, estimated}]`) |
 | POST | `/api/admin/uploads` | CSV 업로드·적재 (`source`, `file`, 선택 `baseYear`) |
 | GET | `/api/admin/uploads` | 적재 이력 |
 | GET | `/api/admin/sources` | 데이터 원천 목록 |
@@ -73,11 +110,13 @@ docker compose up -d        # PostgreSQL 18
 
 ```
 kr.fitorder
-├── common           공통 인터페이스, ESG 항목 등록
+├── common           공통 인터페이스, ESG 항목 등록·API, 지표 저장·재계산
 ├── ingestion        적재 흐름, CSV·API 읽기, 데이터 원천 관리, 적재 이력
 ├── module.uniform   근무복 모듈
 │   ├── loader       근무복·정원현황 적재기
-│   ├── cleansing    중복·결측·코드 점검, 사이즈 매핑
+│   ├── cleansing    중복·결측·코드 점검, 사이즈 매핑, 품질 리포트
+│   ├── analysis     지표 계산식, 발주 추천, 백테스트, 단가, 화면용 집계
+│   ├── metric       지표 계산기(MetricCalculator 구현 8개)
 │   ├── domain       엔티티·저장소
 │   └── api          REST API
 ├── admin            업로드·원천 관리 API, 감사 로그
@@ -90,7 +129,7 @@ kr.fitorder
 | `SourceLoader` | 원천 하나를 항목 테이블에 저장. 읽는 표준 필드를 선언 |
 | `DataIngestion` | 원천을 공통 레코드로 읽기 (`CsvUploadIngestion`, `ApiIngestion`) |
 | `QualityChecker` | 중복·결측·코드 점검 |
-| `MetricCalculator` | 지표 계산 (구현 예정) |
+| `MetricCalculator` | 지표 하나 계산. `EsgDataChangedEvent`가 오면 `MetricService`가 항목의 지표를 모두 다시 계산 |
 | `ExternalSource` | 외부 데이터 조회 (구현 예정) |
 
 새 ESG 항목은 `EsgModule`과 `SourceLoader` 구현을 추가하면 기존 코드 수정 없이 붙는다.

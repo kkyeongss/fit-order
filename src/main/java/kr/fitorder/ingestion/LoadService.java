@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 import kr.fitorder.admin.AuditService;
 import kr.fitorder.common.BusinessException;
+import kr.fitorder.common.EsgDataChangedEvent;
 import kr.fitorder.common.Hashes;
 import kr.fitorder.common.IngestionRequest;
 import kr.fitorder.common.Json;
@@ -17,11 +18,13 @@ import kr.fitorder.common.esg.EsgItem;
 import kr.fitorder.common.esg.EsgItemRepository;
 import kr.fitorder.common.esg.EsgModuleRegistry;
 import kr.fitorder.common.esg.EsgModuleRegistry.RegisteredLoader;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * 적재 흐름: 원천 확인 → 공통 레코드로 읽기 → 같은 데이터 거르기 → 항목 적재기로 저장 → 활성 적재 갱신.
+ * 적재 흐름: 원천 확인 → 공통 레코드로 읽기 → 같은 데이터 거르기 → 항목 적재기로 저장 → 활성 적재 갱신
+ * → (커밋 후) 지표 재계산.
  * 적재 방식(업로드·API·배치)이 바뀌어도 이 흐름과 항목 적재기는 그대로다.
  * 원천의 적재 방식·주소·컬럼 매핑은 data_source(데이터 관리 화면)에서 온다.
  */
@@ -37,15 +40,18 @@ public class LoadService {
     private final LoadHistoryRepository histories;
     private final AuditService audit;
     private final TransactionTemplate tx;
+    private final ApplicationEventPublisher events;
 
     public LoadService(EsgModuleRegistry registry, EsgItemRepository items, DataSourceService sources,
-                       LoadHistoryRepository histories, AuditService audit, TransactionTemplate tx) {
+                       LoadHistoryRepository histories, AuditService audit, TransactionTemplate tx,
+                       ApplicationEventPublisher events) {
         this.registry = registry;
         this.items = items;
         this.sources = sources;
         this.histories = histories;
         this.audit = audit;
         this.tx = tx;
+        this.events = events;
     }
 
     /**
@@ -108,6 +114,7 @@ public class LoadService {
                 audit.record(user, action, sourceCode + "/" + year,
                         fileName + ", " + summary.rowCount() + "행, 중복 " + summary.duplicateCount()
                                 + ", 품질 플래그 " + summary.flaggedCount());
+                events.publishEvent(new EsgDataChangedEvent(target.item().getCode(), "적재 " + sourceCode));
                 return history;
             });
         } catch (RuntimeException e) {

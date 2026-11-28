@@ -100,3 +100,23 @@ fitorder:
     # 뜻을 확인하지 못한 사이즈 코드. 적재는 하되 품질 플래그를 단다.
     unknown-sizes:
       uniform-order-info: ["91", "95"]
+
+    # 지표·추천 계수. 근거는 기획서 '분석·추천 로직'.
+    analysis:
+      stable-from-year: 2020        # 두 출처가 모두 쌓인 첫 해. 연평균·사이즈 비교 구간의 시작
+      per-capita-from-year: 2021    # 이전 정원은 지원직·계약직 미포함
+      improvement-rate: 0.5         # 추천으로 줄이는 미스매치 비율
+      small-order-max: 10           # 하루 주문량이 이 이하면 소량 발주
+      window-years: 3               # 사이즈 비율 비교 구간(최근 3년 vs 그 전 3년)
+      average-years: 2              # 추천 총량: 직전 N년 평균
+      size-weights: [3, 2, 1]       # 사이즈 배분 가중치, 최근 연도부터
+      biennial-groups: [JACKET, PADDING_VEST]   # 격년 주문: 2년 전 값을 쓴다
+      default-safety-stock: 0.05
+      safety-stock:                 # 백테스트 2022~2025 추천 총량 오차 40% 이상 품목군 (재킷 43%, 바지 68%, 패딩조끼 99%)
+        JACKET: 0.10
+        PANTS: 0.10
+        PADDING_VEST: 0.10
+      order-months: [4, 8]          # 정기 발주 시기 제안
+      default-unit-price: 53000     # 단가 미입력 품목의 추정 단가(원)
+      backtest-from-year: 2022
+      backtest-to-year: 2025
