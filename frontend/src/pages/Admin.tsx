@@ -44,7 +44,7 @@ export default function Admin() {
       </div>
       {user.demo && <Notice tone="warn">공개 시연 서버라 이 화면의 저장·불러오기는 막혀 있습니다. 조회만 할 수 있습니다.</Notice>}
       <Tabs tabs={TABS} value={tab} onChange={setTab} />
-      {tab === 'load' && <LoadTab />}
+      {tab === 'load' && <LoadTab goPrices={() => setTab('prices')} />}
       {tab === 'quality' && <QualityTab />}
       {tab === 'prices' && <PricesTab />}
       {tab === 'carbon' && <CarbonTab />}
@@ -59,7 +59,7 @@ const STATUS_TONE = { SUCCESS: 'ok', FAILED: 'bad' } as const
 
 // 적재 --------------------------------------------------------------------------
 
-function LoadTab() {
+function LoadTab({ goPrices }: { goPrices: () => void }) {
   const sources = useGet<SourceView[]>('/api/admin/sources')
   const history = useGet<LoadHistory[]>('/api/admin/uploads')
   const { busy, error, run } = useAction()
@@ -88,6 +88,7 @@ function LoadTab() {
 
   return (
     <>
+      <ExternalApis goPrices={goPrices} />
       <Async state={sources}>
         {(list) => {
           const selected = source || list.find((s) => s.method === 'UPLOAD')?.code || list[0]?.code || ''
@@ -1049,5 +1050,73 @@ function UsersTab() {
         {resetDone && <Badge tone="ok">{resetDone}</Badge>}
       </Card>
     </>
+  )
+}
+
+/** 가격·녹색제품 Open API 2종. 근무복 주문 출처와 달리 주소·키를 서버 설정으로 두고, 가져오기는 '단가·시장가·녹색제품' 탭에서 한다. */
+function ExternalApis({ goPrices }: { goPrices: () => void }) {
+  const market = useGet<MarketPrice[]>('/api/admin/market-prices')
+  const green = useGet<GreenProductView[]>('/api/admin/green-products')
+  const marketAt = market.data
+    ?.map((m) => m.fetchedAt)
+    .sort()
+    .pop()
+  const greenCount = green.data?.length ?? 0
+  const rows = [
+    {
+      name: '조달청_나라장터쇼핑몰 품목정보 서비스',
+      no: '15129471',
+      url: 'https://apis.data.go.kr/1230000/at/ShoppingMallPrdctInfoService',
+      use: "품목군별 시장가(단가 출처 '조달청 시장가')와 환경표지 제품 수",
+      state: marketAt ? <Badge tone="ok">가져옴 {dateTime(marketAt)}</Badge> : <Badge tone="warn">아직 안 가져옴</Badge>,
+    },
+    {
+      name: '한국환경산업기술원_녹색제품 정보조회 서비스 GW',
+      no: '15158379',
+      url: 'https://apis.data.go.kr/B552518/EnvironmentSignalRecognitionInformationInquiryService',
+      use: '환경표지 인증 제품·기업·인증기간(녹색구매 비교)',
+      state:
+        greenCount > 0 ? (
+          <Badge tone="ok">{num(greenCount)}개 제품</Badge>
+        ) : (
+          <Badge tone="bad">가져온 데이터 없음 (기관 서버 오류 04)</Badge>
+        ),
+    },
+  ]
+  return (
+    <Card
+      title="가격·녹색제품 Open API"
+      subtitle="인증키(DATA_GO_KR_SERVICE_KEY)와 주소는 서버 설정에 있고 화면에서 바꾸지 않습니다. 가져오기는 '단가·시장가·녹색제품' 탭에서 합니다."
+      actions={
+        <button className="secondary" onClick={goPrices}>
+          가져오기 화면으로
+        </button>
+      }
+    >
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>API</th>
+              <th>쓰임</th>
+              <th>주소</th>
+              <th>상태</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.no}>
+                <td>
+                  {r.name} <span className="muted">({r.no})</span>
+                </td>
+                <td>{r.use}</td>
+                <td style={{ wordBreak: 'break-all' }}>{r.url}</td>
+                <td>{r.state}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Card>
   )
 }
