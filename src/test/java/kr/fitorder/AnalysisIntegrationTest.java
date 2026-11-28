@@ -38,6 +38,7 @@ import kr.fitorder.module.uniform.analysis.UnitPriceService;
 import kr.fitorder.module.uniform.cleansing.SizeMappingService;
 import kr.fitorder.module.uniform.domain.UniformItemGroup;
 import kr.fitorder.module.uniform.analysis.UniformDataset.PriceSource;
+import kr.fitorder.common.esg.EsgItemService;
 import kr.fitorder.module.uniform.price.GreenProductService;
 import kr.fitorder.module.uniform.price.MarketPriceService;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
@@ -79,6 +80,7 @@ class AnalysisIntegrationTest {
     @Autowired SizeMappingService sizeMappings;
     @Autowired MarketPriceService market;
     @Autowired GreenProductService green;
+    @Autowired kr.fitorder.common.esg.EsgItemService esgItems;
     @Autowired JdbcTemplate jdbc;
     @Autowired MockMvc mvc;
 
@@ -87,6 +89,7 @@ class AnalysisIntegrationTest {
         jdbc.execute("truncate uniform_order, headcount, load_history, audit_log, size_mapping, unit_price, "
                 + "esg_metric_value, market_price, green_product restart identity cascade");
         jdbc.execute("delete from data_source");
+        jdbc.execute("update esg_item set enabled = true, load_method = 'UPLOAD'");
         synchronizer.run(null);
         upload("uniform-order", "data/한국체육산업개발주식회사_근무복 주문현황_20260827.csv");
         upload("uniform-order-info", "data/한국체육산업개발주식회사_근무복 주문현황정보_20260827.csv");
@@ -310,6 +313,48 @@ class AnalysisIntegrationTest {
             }
             assertThat(hasTotal).isTrue();
         }
+    }
+
+    @Test
+    void 화면용_로그인은_JSON으로_답하고_미로그인_API는_401이다() throws Exception {
+        mvc.perform(get("/api/uniform/summary")).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/auth/me")).andExpect(status().isUnauthorized());
+        mvc.perform(post("/api/auth/login").with(csrf()).param("username", "user").param("password", "wrong"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.detail").exists());
+        var login = mvc.perform(post("/api/auth/login").with(csrf())
+                        .param("username", "admin").param("password", "admin1234"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.username").value("admin"))
+                .andExpect(jsonPath("$.admin").value(true))
+                .andReturn();
+        var session = (org.springframework.mock.web.MockHttpSession) login.getRequest().getSession(false);
+        mvc.perform(get("/api/auth/me").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.roles[0]").value("ADMIN"));
+        mvc.perform(post("/api/auth/logout").session(session).with(csrf())).andExpect(status().isNoContent());
+        // 로그인도 CSRF 토큰이 있어야 한다
+        mvc.perform(post("/api/auth/login").param("username", "admin").param("password", "admin1234"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void ESG_항목의_적재_방식을_바꾸면_원천이_한꺼번에_바뀐다() {
+        // 망분리 전환: 모든 원천을 업로드로
+        var item = esgItems.update("uniform", new EsgItemService.Change(null, LoadMethod.UPLOAD), "admin");
+        assertThat(item.sources()).allMatch(s -> s.method() == LoadMethod.UPLOAD);
+        // 정원현황은 setUp에서 주소 없이 업로드로 바꿨으므로, 주소를 넣고 API로 되돌린다
+        dataSources.update("headcount", new Update(LoadMethod.UPLOAD,
+                "https://api.odcloud.kr/api/15144222/v1/x", null, "CP949",
+                Map.of("base-date", "기준일자", "department", "부서명")), "admin");
+
+        item = esgItems.update("uniform", new EsgItemService.Change(null, LoadMethod.API), "admin");
+
+        // API 주소가 있는 정원현황만 API가 되고, 파일로만 주는 근무복 CSV는 업로드로 남는다
+        assertThat(item.sources()).extracting(EsgItemService.SourceInfo::code, EsgItemService.SourceInfo::method)
+                .containsExactlyInAnyOrder(org.assertj.core.groups.Tuple.tuple("headcount", LoadMethod.API),
+                        org.assertj.core.groups.Tuple.tuple("uniform-order", LoadMethod.UPLOAD),
+                        org.assertj.core.groups.Tuple.tuple("uniform-order-info", LoadMethod.UPLOAD));
     }
 
     private static Average average(GroupResult group, Method method) {

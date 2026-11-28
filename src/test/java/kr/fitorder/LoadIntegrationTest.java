@@ -60,6 +60,7 @@ class LoadIntegrationTest {
     void reset() {
         jdbc.execute("truncate uniform_order, headcount, load_history, audit_log, size_mapping restart identity cascade");
         jdbc.execute("delete from data_source");
+        jdbc.execute("update esg_item set enabled = true, load_method = 'UPLOAD'");
         synchronizer.run(null);
     }
 

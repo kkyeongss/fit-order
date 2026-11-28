@@ -90,13 +90,15 @@ docker compose up -d        # PostgreSQL 18
 
 ## API
 
-모두 로그인 필요. `/api/admin/**`과 `PUT /api/esg/**`는 ADMIN 전용. POST·PUT은 `XSRF-TOKEN` 쿠키 값을 `X-XSRF-TOKEN` 헤더로 보낸다.
+`/api/auth/login`(폼 username·password, 성공 시 사용자 JSON) 외에는 로그인 필요, 로그인 전에는 401. `/api/admin/**`과 `PUT /api/esg/**`는 ADMIN 전용. POST·PUT은 `XSRF-TOKEN` 쿠키 값을 `X-XSRF-TOKEN` 헤더로 보낸다.
 집계 API는 `basis=dedup|raw`(기본 `dedup`)를 받는다.
 
 | 메서드 | 경로 | 용도 |
 | --- | --- | --- |
-| GET | `/api/esg/items` | ESG 항목 목록과 지표 정의 |
-| PUT | `/api/esg/items/{code}` | 사용 여부·적재 방식 변경 (`enabled`, `loadMethod`) |
+| POST | `/api/auth/login` · `/api/auth/logout` | 로그인 · 로그아웃 |
+| GET | `/api/auth/me` | 현재 사용자·역할 (화면이 처음 호출해 CSRF 쿠키도 받음) |
+| GET | `/api/esg/items` | ESG 항목 목록, 원천별 적재 방식, 지표 정의 |
+| PUT | `/api/esg/items/{code}` | 사용 여부, 적재 방식 일괄 전환 (`enabled`, `loadMethod`: UPLOAD는 모든 원천, API는 주소가 있는 원천만) |
 | GET | `/api/esg/items/{code}/metrics` | 저장된 지표 값 (`basis`, 선택 `period`) |
 | GET | `/api/uniform/summary` | 연도별 주문량(중복 구분)·품목군별·발주 일수, 월별 집중도, 1인당 지급량, 연평균 |
 | GET | `/api/uniform/sizes` | 품목군별 사이즈 비율(연도별), 두 구간 비교, 미스매치율 (선택 `group`) |
@@ -133,7 +135,7 @@ kr.fitorder
 │   ├── domain       엔티티·저장소
 │   └── api          REST API
 ├── admin            업로드·원천 관리 API, 감사 로그
-└── config           보안 설정
+└── config           보안 설정, 로그인 API
 ```
 
 | 인터페이스 | 역할 |

@@ -52,7 +52,10 @@ public class DataSourceSynchronizer implements ApplicationRunner {
                     seed = new SourceSpec(loader.sourceCode(), null, null, null, null, null);
                     log.warn("원천 {}의 초기 설정이 없습니다. 데이터 관리 화면에서 컬럼 매핑을 입력하세요.", loader.sourceCode());
                 }
-                LoadMethod method = seed.method() != null ? seed.method() : itemMethod;
+                // 설정에 방식이 없으면 항목의 일괄 설정을 따른다. 단 API 주소가 없으면 API로 둘 수 없어 업로드.
+                LoadMethod method = seed.method() != null ? seed.method()
+                        : itemMethod == LoadMethod.API && (seed.url() == null || seed.url().isBlank())
+                        ? LoadMethod.UPLOAD : itemMethod;
                 sources.save(new DataSource(loader.sourceCode(), module.code(), seed, method, "system"));
                 log.info("데이터 원천 등록: {} ({}, {})", loader.sourceCode(), seed.name(), method);
             }
