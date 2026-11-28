@@ -16,6 +16,16 @@ docker compose up -d        # PostgreSQL 18
 ./gradlew test              # 통합 테스트는 Docker 필요
 ```
 
+배포용 이미지(비밀값은 이미지에 넣지 않고 실행할 때 환경변수로):
+
+```bash
+docker build -t fit-order .
+docker run -d -p 8080:8080 --env-file .env \
+  -e FITORDER_DB_URL=jdbc:postgresql://<DB 호스트>:5432/fitorder fit-order
+```
+
+기본 JVM 옵션은 작은 서버용(`-Xmx384m`, 실행 시 약 280MB). `JAVA_OPTS`로 바꾼다.
+
 | 계정 | 역할 |
 | --- | --- |
 | `user / user1234` | 담당자(USER) |
